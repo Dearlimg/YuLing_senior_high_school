@@ -103,7 +103,7 @@ func run() error {
 		if err != nil {
 			return fmt.Errorf("业务表未就绪，请先运行 server migrate: %w", err)
 		}
-		store = dao.NewRankedStore(sqlStore, rdb, cfg.Redis.KeyPrefix)
+		store = dao.NewCachedStore(dao.NewRankedStore(sqlStore, rdb, cfg.Redis.KeyPrefix), rdb, cfg.Redis.KeyPrefix)
 		limiter = dao.NewRedisLimiter(rdb, cfg.Redis.KeyPrefix)
 		sessions = dao.NewRedisSessions(rdb, cfg.Redis.KeyPrefix)
 	}

@@ -50,10 +50,8 @@ return 1
 func (s *RankedStore) RankedPosts(ctx context.Context, period string) ([]model.Post, error) {
 	cacheCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
 	defer cancel()
-	version, err := s.client.Get(cacheCtx, s.prefix+"version").Result()
-	if err == redis.Nil {
-		version, err = "0", nil
-	}
+	version, err := cacheGeneration(cacheCtx, s.client, s.prefix+"version")
+
 	key := s.prefix + version + ":" + period
 	keys := []string{key, key + ":rows"}
 	if err == nil {
@@ -97,10 +95,10 @@ func (s *RankedStore) RankedPosts(ctx context.Context, period string) ([]model.P
 }
 
 func (s *RankedStore) invalidateRanking(ctx context.Context) {
-	cacheCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
+	cacheCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cacheTimeout)
 	defer cancel()
 	// Generations prevent an in-flight pre-write read from repopulating the current leaderboard.
-	_ = s.client.Incr(cacheCtx, s.prefix+"version").Err()
+	_ = bumpGeneration(cacheCtx, s.client, s.prefix+"version")
 }
 
 func (s *RankedStore) CreatePost(ctx context.Context, row *model.Post) error {

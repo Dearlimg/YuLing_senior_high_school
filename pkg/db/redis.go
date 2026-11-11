@@ -14,18 +14,19 @@ import (
 //
 // 注意：go-redis 的 Options 没有 KeyPrefix 字段（不像某些客户端），
 // 因此键前缀不能在这里"自动生效"。KeyPrefix 由 conf 持有并传给 dao 层，
-// 由 dao 在拼 key 时统一调用 keyOf()，见 internal/dao/cache.go。
+// 由 dao 在拼 key 时显式添加前缀，见 internal/dao/cache.go。
 // 这一点必须写清楚，否则很容易误以为前缀已经生效而直接裸写 key，
 // 在共享实例上和其他业务撞键。
 func NewRedis(cfg conf.Redis) (*redis.Client, error) {
 	client := redis.NewClient(&redis.Options{
-		Addr:         cfg.Addr,
-		Password:     cfg.Password,
-		DB:           cfg.DB,
-		PoolSize:     cfg.PoolSize,
-		DialTimeout:  5 * time.Second,
-		ReadTimeout:  3 * time.Second,
-		WriteTimeout: 3 * time.Second,
+		Addr:                  cfg.Addr,
+		Password:              cfg.Password,
+		DB:                    cfg.DB,
+		PoolSize:              cfg.PoolSize,
+		ContextTimeoutEnabled: true,
+		DialTimeout:           5 * time.Second,
+		ReadTimeout:           3 * time.Second,
+		WriteTimeout:          3 * time.Second,
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
