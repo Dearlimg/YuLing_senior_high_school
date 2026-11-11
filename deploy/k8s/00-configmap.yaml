@@ -23,8 +23,16 @@ data:
   TZ: "Asia/Shanghai"
   SHUTDOWN_TIMEOUT: "15s"
   DEMO_MODE: "false"
-  # 只填写实际入口代理的 IP/CIDR，禁止无差别信任所有转发头。
-  TRUSTED_PROXIES: ""
+  # 只信任实际链路上的转发者，不能填 0.0.0.0/0。
+  #
+  # 链路是：公网 → 阿里云 nginx → SSH 隧道 → NodePort → Pod。
+  # Pod 看到的源地址是集群网段，不是真实用户 IP；不配这一项的话，
+  # 所有请求的 ClientIP() 都会是同一个地址，限流（20 次/10 分钟）
+  # 就变成"全站共用一个配额"，几个人同时用就会集体 503。
+  #
+  # nginx 侧已把 X-Forwarded-For 覆盖为 $remote_addr（而不是追加），
+  # 因此客户端无法通过自填 XFF 伪造身份绕过限流。
+  TRUSTED_PROXIES: "10.42.0.0/16,10.43.0.0/16,127.0.0.1/32"
 
   # ---------- MySQL ----------
   # 集群内走 Service DNS，不写 IP、不写 NodePort：
