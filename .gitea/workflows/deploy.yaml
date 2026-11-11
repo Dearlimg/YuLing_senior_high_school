@@ -1,0 +1,57 @@
+# Gitea Actions 流水线：yulin 部署
+#
+# 为什么是"SSH 到部署机执行脚本"这种看起来笨的形态：
+#   runner 跑在 k3s 的 Pod 里（act_runner，ubuntu 基础镜像，没有 Go 工具链），
+#   而构建需要 go + docker + ctr + kubectl 四件套，这些都装在 NAT VPS 宿主机上。
+#   与其在 runner 镜像里重装一遍工具链（还会遇到 dind 的网络问题），
+#   不如让 runner 只做编排，真正干活的是宿主机上的脚本。
+#   这与 blog-v3 的既有实践保持一致，运维心智统一。
+#
+# secrets 依赖：
+#   DEPLOY_SSH_KEY  —— 专用部署私钥，公钥已加入 natvps 的 authorized_keys
+#   GITHUB_TOKEN    —— Gitea 内置，用于 clone 私有仓库，无需手动配置
+
+name: deploy-yulin
+
+on:
+  push:
+    branches: [master]
+  # 允许手动触发：回滚后重跑、或修复 secrets 后补发
+  workflow_dispatch:
+
+# 部署是串行操作，两个任务同时跑会互相踩：
+# 一个在 rollout，另一个在 set image，最后镜像和 Pod 状态对不上。
+# cancel-in-progress: false —— 让新任务排队而不是打断正在跑的部署，
+# 打断一次 rollout 比排队等几十秒危险得多。
+concurrency:
+  group: deploy-yulin
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 同步源码到部署机
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          # clone 走 127.0.0.1:30300（gitea 的 NodePort），
+          # 不走公网域名：runner 在集群内，走 NodePort 可绕开 dind 网络栈与 TLS 校验。
+          ssh -o StrictHostKeyChecking=no -p 46546 root@114.66.0.89 \
+            "rm -rf /root/workspace/yulin-src && git clone --depth=1 --branch=master http://gao:${GITHUB_TOKEN}@127.0.0.1:30300/gao/yulin.git /root/workspace/yulin-src 2>&1 | grep -v Cloning; echo COMMIT=\$(git -C /root/workspace/yulin-src log --oneline -1)"
+
+      - name: 编译测试并部署
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          set -e
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh -o StrictHostKeyChecking=no -p 46546 root@114.66.0.89 \
+            "bash /root/deploy-yulin-remote.sh /root/workspace/yulin-src"

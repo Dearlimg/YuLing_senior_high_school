@@ -177,6 +177,66 @@ im-toy 曾占用 `8000 → 30443` 这条链路，现由本项目接管。处置�
 必须先把 yulin 的 Service 改回 ClusterIP，顺序不能反。
 所有原始清单快照在 `deploy/backup/`。
 
+## CI/CD
+
+推送到 `master` 自动部署，配置见 `.gitea/workflows/deploy.yaml`，实际工作在
+`/root/deploy-yulin-remote.sh`（部署机上）。
+
+```
+git push master
+  → Gitea Actions runner（k3s 内 runner-0）
+  → SSH 到 NAT VPS
+  → git clone 走 127.0.0.1:30300（Gitea NodePort，绕开 dind 网络）
+  → deploy-yulin-remote.sh：
+      1. go vet + go test          静态检查与单测门禁
+      2. 交叉编译 linux/amd64 静态二进制
+      3. docker build（sha tag + latest）
+      4. ctr import 到 k3s containerd
+      5. mysqldump 备份 yulin 库
+      6. kubectl set image + rollout status（超时自动回滚）
+      7. 公网 /health 与 /ready 验证（失败自动回滚）
+```
+
+### 为什么不直接用多阶段 Dockerfile
+
+部署机的 `docker` 拉不到 `docker.io`（DNS 被污染，解析到无效 IP），
+`golang:1.26-alpine` 永远拉不下来。所以编译放在宿主机（有 go1.26.1），
+镜像阶段只 `COPY` 产物 —— 即 `deploy/Dockerfile.prebuilt`。
+
+### 与 blog-v3 流水线的三处差异
+
+| 项 | blog-v3 | 本项目 | 原因 |
+| --- | --- | --- | --- |
+| 镜像 tag | `latest` | git 短 sha + `latest` | `latest` + `IfNotPresent` 会复用旧 digest，表现为“部署成功但代码没变” |
+| 发布失败 | 需人工介入 | 自动 `rollout undo` | 无人值守场景下，失败必须自己退回去 |
+| 数据库备份 | root 账号 | 项目专用账号，从 Secret 现取 | 备份不需要 root 权限，脚本里也不该出现密码 |
+
+### 需要的 secrets
+
+| 名称 | 用途 | 配置方式 |
+| --- | --- | --- |
+| `DEPLOY_SSH_KEY` | SSH 到部署机的私钥（对应 `yulin-ci-deploy` 公钥） | 仓库 Settings → Actions → Secrets |
+| `GITHUB_TOKEN` | clone 私有仓库 | Gitea 内置，无需配置 |
+
+部署密钥是**每项目独立**的（`blog-ci-deploy`、`im-toy-ci-deploy`、`yulin-ci-deploy` 各自一对），
+任何一方泄露可以单独从 `natvps:/root/.ssh/authorized_keys` 吊销，不影响其他项目。
+
+### 手动操作
+
+```bash
+# 手动触发一次部署（不改代码）
+#   Gitea 仓库页 → Actions → deploy-yulin → Run workflow
+
+# 本地直接跑远程脚本（排障用，跳过 runner）
+ssh natvps "bash /root/deploy-yulin-remote.sh /root/workspace/yulin-src"
+
+# 回滚到上一版本
+kubectl rollout undo deploy/yulin-server -n apps
+
+# 查看某次部署对应的镜像
+kubectl get deploy yulin-server -n apps -o jsonpath='{.spec.template.spec.containers[0].image}'
+```
+
 ## 已知取舍
 
 | 取舍 | 现状 | 理由 |

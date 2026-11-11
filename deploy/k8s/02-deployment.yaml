@@ -37,6 +37,9 @@ spec:
         fsGroup: 10001
       containers:
         - name: server
+          # 镜像 tag 由 CI 管理：Gitea Actions 会用 git 短 sha（如 yulin-server:a1b2c3d）
+          # 执行 kubectl set image 覆盖这个字段。这里的 latest 只是首次 apply 的起点。
+          # 同一个 sha 会同时打 latest tag，所以手动 apply 本清单也不会退回旧代码。
           image: yulin-server:latest
           imagePullPolicy: IfNotPresent
           ports:
