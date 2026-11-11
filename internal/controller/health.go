@@ -32,6 +32,10 @@ func (h *HealthController) Health(c *gin.Context) {
 
 // Ready GET /ready
 func (h *HealthController) Ready(c *gin.Context) {
+	if h.db == nil && h.rdb == nil {
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "mode": "demo", "persistence": "ephemeral"})
+		return
+	}
 	ctx := c.Request.Context()
 
 	sqlDB, err := h.db.DB()

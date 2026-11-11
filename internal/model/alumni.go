@@ -1,40 +1,37 @@
-// Package model 定义持久化实体。
-// 这一层只描述"数据长什么样"，不包含任何业务规则，也不依赖 gin / http。
+// Package model defines persistent entities. Public responses use explicit DTOs.
 package model
 
 import "time"
 
-// Alumni 校友档案。
-//
-// 字段设计对应真实诉求：一个高中校友录要回答的核心问题——"这个人是谁、
-// 哪一届哪一班、现在在哪做什么、怎么联系"。
-//
-// 隐私相关字段（Phone/Email）标记了 remark，后续接入可见性控制时
-// 应以字段级白名单输出，而不是整行 JSON 直出。
+// Alumni stores both graduates and current students; dream schools are kept separate.
 type Alumni struct {
-	ID uint64 `gorm:"column:id;primaryKey;autoIncrement"`
-
-	Name           string `gorm:"column:name;type:varchar(64);not null;index:idx_name"`
-	Gender         int8   `gorm:"column:gender;not null;default:0"` // 0 未知 1 男 2 女
-	GraduationYear int    `gorm:"column:graduation_year;not null;index:idx_year_class"` // 毕业年份，如 2015
-	ClassName      string `gorm:"column:class_name;type:varchar(32);not null;default:'';index:idx_year_class"` // 班级，如 高三(2)班
-
-	City     string `gorm:"column:city;type:varchar(64);not null;default:'';index:idx_city"`
-	Industry string `gorm:"column:industry;type:varchar(64);not null;default:''"`
-	Company  string `gorm:"column:company;type:varchar(128);not null;default:''"`
-	Position string `gorm:"column:position;type:varchar(64);not null;default:''"`
-
-	// 以下两项属于个人信息，接口层必须按可见性策略决定是否输出原始值。
-	Phone string `gorm:"column:phone;type:varchar(32);not null;default:''"`
-	Email string `gorm:"column:email;type:varchar(128);not null;default:''"`
-
-	Remark string `gorm:"column:remark;type:varchar(255);not null;default:''"`
-
-	CreatedAt time.Time  `gorm:"column:created_at;autoCreateTime"`
-	UpdatedAt time.Time  `gorm:"column:updated_at;autoUpdateTime"`
-	DeletedAt *time.Time `gorm:"column:deleted_at;index:idx_deleted_at"`
+	ID              uint64 `gorm:"primaryKey"`
+	Name            string `gorm:"type:varchar(64);not null;index:idx_name"`
+	Gender          int8
+	Identity        string `gorm:"type:varchar(16);not null;default:alumni"`
+	GraduationYear  int    `gorm:"not null;index:idx_year_class"`
+	ClassName       string `gorm:"type:varchar(32);not null;default:'';index:idx_year_class"`
+	City            string `gorm:"type:varchar(64);not null;default:'';index:idx_city"`
+	University      string `gorm:"type:varchar(100);not null;default:'';index:idx_university"`
+	DreamUniversity string `gorm:"type:varchar(100);not null;default:''"`
+	Major           string `gorm:"type:varchar(50);not null;default:''"`
+	Education       string `gorm:"type:varchar(16);not null;default:''"`
+	Industry        string `gorm:"type:varchar(64);not null;default:''"`
+	Company         string `gorm:"type:varchar(128);not null;default:''"`
+	Position        string `gorm:"type:varchar(64);not null;default:''"`
+	Phone           string `gorm:"type:varchar(32);not null;default:''"`
+	Wechat          string `gorm:"type:varchar(50);not null;default:''"`
+	Email           string `gorm:"type:varchar(128);not null;default:''"`
+	Remark          string `gorm:"type:varchar(255);not null;default:''"`
+	Message         string `gorm:"type:varchar(120);not null;default:''"`
+	AvatarColor     string `gorm:"type:varchar(8);not null;default:red"`
+	ContactPublic   bool
+	EditCodeHash    string  `gorm:"type:char(64);not null;default:''"`
+	CreateKey       *string `gorm:"type:char(64);uniqueIndex:idx_alumni_create_key"`
+	Status          string  `gorm:"type:varchar(16);not null;default:active"`
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	DeletedAt       *time.Time `gorm:"index:idx_deleted_at"`
 }
 
-// TableName 显式指定表名，避免依赖 GORM 的复数化规则。
-// 表名一旦被 ORM 隐式决定，后续换 ORM 或写裸 SQL 时的对不上就是灾难。
 func (Alumni) TableName() string { return "alumni" }

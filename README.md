@@ -1,7 +1,42 @@
 # YuLing Senior High School
 
-榆林高中校友录 —— Go 单体服务。当前阶段目标是**基础设施与工程骨架**：
-分层清晰、配置可注入、凭据不进仓库、能一条命令部署到自建 k3s。
+榆林中学校友之家 —— 独立的响应式 Web 服务。使用 **Go / Gin / GORM / MySQL / Redis**，
+前端资源通过 Go embed 编入单体二进制，复用自建 k3s 与 Gitea CI，无需 Node 构建或微信 SDK。
+
+## 本次核心功能
+
+首页、校友登记/在读报到、电子校友卡、凭编辑码修改、通讯录搜索/届别/班级/分页、大学去向、
+校园照片上传/压缩/凭码撤下、发帖/单图/回复，以及管理下架/恢复/查询/审计接口。
+所有数据库操作通过 DAO 层的 GORM 实现；公开返回值使用字段白名单，不返回联系方式和管理码。
+
+- [开发排期与里程碑](docs/development-plan.md)
+- [页面、接口与运行验收说明](docs/core-web.md)
+- [校园摄影与视觉素材来源](docs/assets.md)
+
+### 先预览前端（Windows PowerShell）
+
+```powershell
+$env:DEMO_MODE = 'true'
+$env:SERVER_PORT = '8090'
+go run ./cmd/server
+```
+
+访问 `http://localhost:8090`。演示模式无需 MySQL/Redis，人物与帖子为虚构，数据重启即清空，
+页面有明确提示，`APP_ENV=prod` 会拒绝开启演示模式。正式登记应使用下面的数据库模式。
+
+### 使用真实 MySQL / Redis
+
+先从 `.env.example` 注入环境变量；代码本身不读取 `.env` 文件。**先备份数据库，再执行 GORM 迁移**：
+
+```powershell
+$env:DEMO_MODE = 'false'
+go run ./cmd/migrate
+go run ./cmd/server
+```
+
+迁移是显式命令，服务启动不自动更改表结构。容器中的同等命令是 `/usr/local/bin/server migrate`，
+复用容器的 MySQL 配置。原 `001_init.sql` 仅代表基础骨架，完整功能必须执行 GORM 迁移。
+照片压缩后存储在 MySQL 的 `MEDIUMBLOB`，不依赖容器可写目录或额外 PVC。
 
 ## 目录结构
 
@@ -61,6 +96,9 @@
 | `SERVER_PORT` | ConfigMap | `8080` | HTTP 监听端口 |
 | `LOG_LEVEL` | ConfigMap | `info` | `debug`/`info`/`warn`/`error` |
 | `SHUTDOWN_TIMEOUT` | ConfigMap | `15s` | 优雅退出等待上限 |
+| `DEMO_MODE` | ConfigMap | `false` | 本地演示数据；生产环境禁止开启 |
+| `TRUSTED_PROXIES` | ConfigMap | 空 | 实际入口代理 IP/CIDR，逗号分隔；默认不信任转发头 |
+| `ADMIN_TOKEN` | **Secret** | 空 | 至少 32 字符，管理接口 Bearer Token；留空关闭 |
 | `MYSQL_HOST` | ConfigMap | `127.0.0.1` | 集群内用 `mysql.infra.svc.cluster.local` |
 | `MYSQL_PORT` | ConfigMap | `3306` | |
 | `MYSQL_DATABASE` | ConfigMap | `yulin` | |

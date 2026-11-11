@@ -23,6 +23,13 @@ help:
 run:
 	go run ./cmd/server
 
+.PHONY: preview migrate
+preview:
+	DEMO_MODE=true SERVER_PORT=8090 go run ./cmd/server
+
+migrate:
+	go run ./cmd/migrate
+
 # 目标平台写死 linux/amd64：本机是 Windows，
 # 不指定的话产出 .exe 无法在容器里运行。
 .PHONY: build

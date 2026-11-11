@@ -22,6 +22,9 @@ data:
   LOG_LEVEL: "info"
   TZ: "Asia/Shanghai"
   SHUTDOWN_TIMEOUT: "15s"
+  DEMO_MODE: "false"
+  # 只填写实际入口代理的 IP/CIDR，禁止无差别信任所有转发头。
+  TRUSTED_PROXIES: ""
 
   # ---------- MySQL ----------
   # 集群内走 Service DNS，不写 IP、不写 NodePort：

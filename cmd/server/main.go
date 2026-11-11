@@ -8,12 +8,16 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 
 	// 把 IANA 时区数据库编进二进制（约 450KB）。
 	// 这样容器里即使没装 tzdata，TZ=Asia/Shanghai 也能正确生效；
@@ -24,6 +28,7 @@ import (
 	"YuLing_senior_high_school/internal/conf"
 	"YuLing_senior_high_school/internal/controller"
 	"YuLing_senior_high_school/internal/dao"
+	"YuLing_senior_high_school/internal/demo"
 	"YuLing_senior_high_school/internal/logic"
 	"YuLing_senior_high_school/internal/router"
 	"YuLing_senior_high_school/pkg/db"
@@ -43,6 +48,20 @@ func run() error {
 		return err
 	}
 	initLogger(cfg)
+	if len(os.Args) == 2 && os.Args[1] == "migrate" {
+		connection, err := db.NewMySQL(cfg.MySQL, cfg.IsProd())
+		if err != nil {
+			return err
+		}
+		defer func() { _ = db.CloseMySQL(connection) }()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		if err := dao.NewSQLStore(connection).Migrate(ctx); err != nil {
+			return err
+		}
+		slog.Info("GORM 数据库迁移完成")
+		return nil
+	}
 
 	slog.Info("配置加载完成",
 		"env", cfg.App.Env,
@@ -54,26 +73,49 @@ func run() error {
 
 	// 2. 基础设施。任一依赖不可用都不启动，
 	//    宁可 CrashLoop 让 K8s 重试，也不要带着坏连接对外提供服务。
-	gdb, err := db.NewMySQL(cfg.MySQL, cfg.IsProd())
-	if err != nil {
-		return err
+	var gdb *gorm.DB
+	var rdb *redis.Client
+	var store dao.Store
+	var limiter dao.Limiter
+	if cfg.App.DemoMode {
+		memory := dao.NewMemoryStore()
+		if err := demo.Seed(memory); err != nil {
+			return err
+		}
+		store, limiter = memory, memory
+		slog.Warn("演示模式：人物资料为虚构，数据仅在进程内保存，重启后重置")
+	} else {
+		gdb, err = db.NewMySQL(cfg.MySQL, cfg.IsProd())
+		if err != nil {
+			return err
+		}
+		defer func() { _ = db.CloseMySQL(gdb) }()
+		rdb, err = db.NewRedis(cfg.Redis)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = db.CloseRedis(rdb) }()
+		sqlStore := dao.NewSQLStore(gdb)
+		checkCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		err = sqlStore.CheckSchema(checkCtx)
+		cancel()
+		if err != nil {
+			return fmt.Errorf("业务表未就绪，请先运行 server migrate: %w", err)
+		}
+		store = sqlStore
+		limiter = dao.NewRedisLimiter(rdb, cfg.Redis.KeyPrefix)
 	}
-	defer func() { _ = db.CloseMySQL(gdb) }()
-
-	rdb, err := db.NewRedis(cfg.Redis)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = db.CloseRedis(rdb) }()
 
 	// 3. 分层装配。
-	alumniDAO := dao.NewAlumniDAO(gdb)
-	alumniLogic := logic.NewAlumniLogic(alumniDAO)
+	alumniLogic := logic.NewAlumniLogic(store)
+	communityLogic := logic.NewCommunityLogic(store)
 
 	engine := router.New(router.Deps{
-		Config: cfg,
-		Health: controller.NewHealthController(gdb, rdb),
-		Alumni: controller.NewAlumniController(alumniLogic),
+		Config:    cfg,
+		Health:    controller.NewHealthController(gdb, rdb),
+		Alumni:    controller.NewAlumniController(alumniLogic),
+		Community: controller.NewCommunityController(communityLogic),
+		Limiter:   limiter,
 	})
 
 	srv := &http.Server{
