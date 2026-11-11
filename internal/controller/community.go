@@ -200,3 +200,8 @@ func serveImage(c *gin.Context, data []byte, mime string, err error) {
 	c.Header("Cache-Control", "no-store")
 	c.Data(200, mime, data)
 }
+
+func (h *CommunityController) Ranking(c *gin.Context) {
+	result, err := h.logic.Ranking(c.Request.Context(), c.DefaultQuery("period", "all"))
+	respond(c, result, err)
+}

@@ -71,6 +71,7 @@ func New(d Deps) *gin.Engine {
 		signed.DELETE("/photos/:id", d.Community.DeletePhoto)
 		v1.GET("/photos/:id/image", d.Community.PhotoImage)
 		v1.GET("/posts", d.Community.Posts)
+		v1.GET("/posts/ranking", d.Community.Ranking)
 		signed.POST("/posts", d.Community.CreatePost)
 		v1.GET("/posts/:id/image", d.Community.PostImage)
 		v1.GET("/posts/:id/replies", d.Community.Replies)

@@ -48,6 +48,9 @@ type Stats struct {
 }
 
 type ContentQuery struct {
+	Keyword  string
+	Sort     string
+	Since    time.Time
 	Page     int
 	PageSize int
 	Category string
@@ -79,6 +82,7 @@ type Store interface {
 	FindPhoto(context.Context, uint64) (*model.Photo, error)
 	CreatePhoto(context.Context, *model.Photo) error
 	DeletePhoto(context.Context, uint64) error
+	RankedPosts(context.Context, string) ([]model.Post, error)
 	ListPosts(context.Context, ContentQuery) ([]model.Post, int64, error)
 	FindPost(context.Context, uint64) (*model.Post, error)
 	CreatePost(context.Context, *model.Post) error

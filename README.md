@@ -313,3 +313,12 @@ Redis 会话服务故障时拒绝受保护操作。公开浏览仍无需登录�
 新增接口：`POST /api/v1/auth/register`、`POST /api/v1/auth/login`、`POST /api/v1/auth/logout`、
 `GET /api/v1/me`、`PUT /api/v1/me/alumni`。`POST /api/v1/alumni` 兼容注册入口，现同样需要账号密码。
 上线前执行 `go run ./cmd/migrate` 创建 `app_user` 并给内容表增加 `user_id`，历史资料不自动归属任何账号。
+
+## 帖子搜索与热议榜
+
+`GET /api/v1/posts?keyword=关键词&sort=latest|hot&page=1&page_size=10` 支持正文、作者搜索，
+通配符按普通字符处理；排序参数使用白名单。`GET /api/v1/posts/ranking?period=all|week` 返回前 10 名。
+总榜统计全部有效帖子；近 7 天榜统计近 7 天发布的有效帖子，均按有效回复数降序，同分按帖子编号降序。
+生产模式使用 Redis Sorted Set 保存分数，Hash 保存不含图片及管理凭据的帖子投影，通过 Lua 原子读写。
+发帖、回复和管理上下架递增版本使旧榜失效，版本键不设过期，榜单数据 60 秒过期；并发旧查询不能回填当前版本。
+Redis 超时或故障回源 MySQL；演示模式在内存中使用同样的排序规则。

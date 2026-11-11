@@ -2,6 +2,8 @@ package dao
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -49,6 +51,17 @@ func (s *SQLStore) DeletePhoto(ctx context.Context, id uint64) error {
 
 func (s *SQLStore) ListPosts(ctx context.Context, q ContentQuery) ([]model.Post, int64, error) {
 	tx := s.db.WithContext(ctx).Model(&model.Post{}).Where("post.status = ?", "active")
+	if q.Keyword != "" {
+		keyword := "%" + strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(q.Keyword) + "%"
+		tx = tx.Where("(post.content LIKE ? ESCAPE '!' OR post.nickname LIKE ? ESCAPE '!')", keyword, keyword)
+	}
+	if !q.Since.IsZero() {
+		tx = tx.Where("post.created_at >= ?", q.Since)
+	}
+	order := "post.id DESC"
+	if q.Sort == "hot" {
+		order = "reply_count DESC, post.id DESC"
+	}
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -57,7 +70,7 @@ func (s *SQLStore) ListPosts(ctx context.Context, q ContentQuery) ([]model.Post,
 	err := tx.Select("post.id, post.nickname, post.graduation_year, post.content, post.avatar_color, post.created_at, " +
 		"(LENGTH(post.image) > 0) AS has_image, " +
 		"(SELECT COUNT(*) FROM reply WHERE reply.post_id = post.id AND reply.status = 'active') AS reply_count").
-		Order("post.id DESC").Offset((q.Page - 1) * q.PageSize).Limit(q.PageSize).Find(&rows).Error
+		Order(order).Offset((q.Page - 1) * q.PageSize).Limit(q.PageSize).Find(&rows).Error
 	return rows, total, err
 }
 
@@ -144,4 +157,16 @@ func (s *SQLStore) Inspect(ctx context.Context, kind string, id uint64) (*Modera
 	err := s.db.WithContext(ctx).Table(kind).Select("id, status, created_at, "+column+" AS summary").
 		Where("id = ?", id).Take(&row).Error
 	return &row, recordError(err)
+}
+
+func (s *SQLStore) RankedPosts(ctx context.Context, period string) ([]model.Post, error) {
+	rows, _, err := s.ListPosts(ctx, rankingQuery(period))
+	return rows, err
+}
+func rankingQuery(period string) ContentQuery {
+	q := ContentQuery{Page: 1, PageSize: 100, Sort: "hot"}
+	if period == "week" {
+		q.Since = time.Now().Add(-7 * 24 * time.Hour)
+	}
+	return q
 }

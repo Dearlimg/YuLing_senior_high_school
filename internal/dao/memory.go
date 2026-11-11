@@ -294,7 +294,10 @@ func (s *MemoryStore) ListPosts(_ context.Context, q ContentQuery) ([]model.Post
 	defer s.mu.Unlock()
 	rows := []model.Post{}
 	for _, r := range s.posts {
-		if r.Status != "active" {
+		if r.Status != "active" || (!q.Since.IsZero() && r.CreatedAt.Before(q.Since)) {
+			continue
+		}
+		if !strings.Contains(strings.ToLower(r.Content+"\n"+r.Nickname), strings.ToLower(q.Keyword)) {
 			continue
 		}
 		r.HasImage = len(r.Image) > 0
@@ -302,7 +305,12 @@ func (s *MemoryStore) ListPosts(_ context.Context, q ContentQuery) ([]model.Post
 		r.ReplyCount = s.replyCount(r.ID)
 		rows = append(rows, r)
 	}
-	slices.SortFunc(rows, func(a, b model.Post) int { return compareID(b.ID, a.ID) })
+	slices.SortFunc(rows, func(a, b model.Post) int {
+		if q.Sort == "hot" && a.ReplyCount != b.ReplyCount {
+			return int(b.ReplyCount - a.ReplyCount)
+		}
+		return compareID(b.ID, a.ID)
+	})
 	return pageSlice(rows, q.Page, q.PageSize), int64(len(rows)), nil
 }
 
@@ -481,4 +489,9 @@ func (s *MemoryStore) Inspect(_ context.Context, kind string, id uint64) (*Moder
 		return nil, ErrNotFound
 	}
 	return item, nil
+}
+
+func (s *MemoryStore) RankedPosts(ctx context.Context, period string) ([]model.Post, error) {
+	rows, _, err := s.ListPosts(ctx, rankingQuery(period))
+	return rows, err
 }

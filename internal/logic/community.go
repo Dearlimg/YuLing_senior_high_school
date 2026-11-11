@@ -22,6 +22,8 @@ type ContentRequest struct {
 	Page     int    `form:"page"`
 	PageSize int    `form:"page_size"`
 	Category string `form:"category"`
+	Keyword  string `form:"keyword"`
+	Sort     string `form:"sort"`
 }
 
 type PhotoVO struct {
@@ -146,23 +148,40 @@ type PostRequest struct {
 }
 
 func (l *CommunityLogic) Posts(ctx context.Context, req ContentRequest) (*PostResult, error) {
+	if err := validateText("搜索关键词", req.Keyword, 100, false); err != nil {
+		return nil, err
+	}
+	if req.Sort != "" && req.Sort != "latest" && req.Sort != "hot" {
+		return nil, invalid("排序方式不正确")
+	}
 	page, size := pagination(req.Page, req.PageSize)
-	rows, total, err := l.store.ListPosts(ctx, dao.ContentQuery{Page: page, PageSize: size})
+	rows, total, err := l.store.ListPosts(ctx, dao.ContentQuery{Page: page, PageSize: size, Keyword: strings.TrimSpace(req.Keyword), Sort: req.Sort})
 	if err != nil {
 		return nil, err
 	}
+	return postResult(rows, total), nil
+}
+func (l *CommunityLogic) Ranking(ctx context.Context, period string) (*PostResult, error) {
+	if period != "all" && period != "week" {
+		return nil, invalid("榜单范围只能为 all 或 week")
+	}
+	rows, err := l.store.RankedPosts(ctx, period)
+	if err != nil {
+		return nil, err
+	}
+	rows = rows[:min(len(rows), 10)]
+	return postResult(rows, int64(len(rows))), nil
+}
+func postResult(rows []model.Post, total int64) *PostResult {
 	items := make([]PostVO, 0, len(rows))
 	for _, r := range rows {
-		v := PostVO{
-			ID: r.ID, Nickname: r.Nickname, GraduationYear: r.GraduationYear, Content: r.Content,
-			AvatarColor: r.AvatarColor, ReplyCount: r.ReplyCount, CreatedAt: r.CreatedAt,
-		}
+		v := PostVO{ID: r.ID, Nickname: r.Nickname, GraduationYear: r.GraduationYear, Content: r.Content, AvatarColor: r.AvatarColor, ReplyCount: r.ReplyCount, CreatedAt: r.CreatedAt}
 		if r.HasImage {
 			v.ImageURL = fmt.Sprintf("/api/v1/posts/%d/image", r.ID)
 		}
 		items = append(items, v)
 	}
-	return &PostResult{Items: items, Total: total}, nil
+	return &PostResult{Items: items, Total: total}
 }
 
 func (l *CommunityLogic) CreatePost(ctx context.Context, req PostRequest) (uint64, error) {

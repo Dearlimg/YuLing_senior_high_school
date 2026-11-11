@@ -154,10 +154,24 @@ function postCard(post) {
 }
 export async function forum(url) {
   const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
-  const result = await api(`/posts?page=${page}&page_size=10`);
+  const keyword = url.searchParams.get("keyword") || "";
+  const sort = url.searchParams.get("sort") === "hot" ? "hot" : "latest";
+  const period = url.searchParams.get("period") === "week" ? "week" : "all";
+  const [result, ranking] = await Promise.all([
+    api(`/posts?page=${page}&page_size=10&keyword=${encodeURIComponent(keyword)}&sort=${sort}`),
+    api(`/posts/ranking?period=${period}`),
+  ]);
+  const forumPath = (changes = {}) => {
+    const params = new URLSearchParams({keyword,sort,period,...changes});
+    return `/forum?${params}`;
+  };
   return {
-    html: `<div class="wrap page-content">${sectionHead("THE ALUMNI COMMON ROOM", "同窗之间，总有话想说", "想说的、想找的、想聊的，都发在这里。把这里当作课间走廊，和老同学聊聊近况。")}<div class="forum-layout"><section><div class="composer-card"><div class="composer-title">${icon("chat")}<h2>今天，想和同窗说些什么？</h2><small>登录后以校友卡身份发帖</small></div><form id="post-form"><div class="form-grid"><p class="subtle">姓名与届别使用你的校友卡信息。<a href="/me">前往个人中心</a></p></div><label class="field"><span class="sr-only">帖子正文</span><textarea name="content" required maxlength="500" rows="4" placeholder="想对母校、老师或同学说点什么…"></textarea><small class="character-count"><span id="post-count">0</span> / 500</small></label><div id="post-image-picker" hidden>${imagePicker()}</div><div class="composer-bottom"><button class="text-link" id="toggle-post-image" type="button">${icon("image")}配一张图</button><span>每一句近况，都有人愿意听。</span><button class="button primary" type="submit">发布 ${icon("arrow")}</button></div><p class="form-error" role="alert" tabindex="-1" hidden></p></form></div><div class="section-heading post-list-heading"><h2>最新帖子 <span class="count-label">${result.total} 条</span></h2><span class="subtle">听听大家的新鲜事</span></div><div class="post-list">${result.items.map(postCard).join("") || empty("课间走廊还很安静", "来留个言，开启今天的第一段同窗对话。")}</div>${pagination(page, result.total, 10)}</section><aside class="forum-aside"><div class="forum-welcome"><span class="eyebrow">A PLACE FOR ALL OF US</span><h3>话题不设限，<br>同窗情常在。</h3><p>聊母校，也聊远方。<br>分享喜悦，也诉说想念。</p><div class="forum-prompt">${icon("book")}那些年，最难忘的一节课</div><div class="forum-prompt">${icon("pin")}在同一座城市的你们</div><div class="forum-prompt">${icon("school")}想给学弟学妹的一点建议</div></div><div class="community-guide"><span class="eyebrow">KIND WORDS, WARM HEARTS</span><h3>让这里，像母校一样温暖</h3><p>尊重每一位同窗，友善表达。请勿发布他人隐私、广告或不当内容，公开内容采用先发后审。</p><a href="/privacy" class="text-link">社区与隐私说明 ${icon("up")}</a></div><div class="forum-mini-cta">还没有自己的校友卡？<a href="/register">写下近况，领取一份归属 ${icon("arrow")}</a></div></aside></div></div>`,
+    html: `<div class="wrap page-content">${sectionHead("THE ALUMNI COMMON ROOM", "同窗之间，总有话想说", "想说的、想找的、想聊的，都发在这里。把这里当作课间走廊，和老同学聊聊近况。")}<form id="post-search" class="post-search"><label for="post-keyword" class="sr-only">搜索帖子内容或作者</label><input id="post-keyword" name="keyword" maxlength="100" value="${esc(keyword)}" placeholder="搜索帖子内容或作者…"/><button class="button primary" type="submit">${icon("search")}搜索帖子</button>${keyword ? '<a href="/forum" class="text-link">清空</a>' : ""}</form><div class="forum-layout"><section><div class="composer-card"><div class="composer-title">${icon("chat")}<h2>今天，想和同窗说些什么？</h2><small>登录后以校友卡身份发帖</small></div><form id="post-form"><div class="form-grid"><p class="subtle">姓名与届别使用你的校友卡信息。<a href="/me">前往个人中心</a></p></div><label class="field"><span class="sr-only">帖子正文</span><textarea name="content" required maxlength="500" rows="4" placeholder="想对母校、老师或同学说点什么…"></textarea><small class="character-count"><span id="post-count">0</span> / 500</small></label><div id="post-image-picker" hidden>${imagePicker()}</div><div class="composer-bottom"><button class="text-link" id="toggle-post-image" type="button">${icon("image")}配一张图</button><span>每一句近况，都有人愿意听。</span><button class="button primary" type="submit">发布 ${icon("arrow")}</button></div><p class="form-error" role="alert" tabindex="-1" hidden></p></form></div><div class="section-heading post-list-heading"><h2>${keyword ? "搜索结果" : "同窗动态"} <span class="count-label">${result.total} 条</span></h2><div class="category-filters"><button class="chip ${sort === "latest" ? "active" : ""}" data-post-sort="latest">最新</button><button class="chip ${sort === "hot" ? "active" : ""}" data-post-sort="hot">回复最多</button></div></div><div class="post-list">${result.items.map(postCard).join("") || empty("课间走廊还很安静", "来留个言，开启今天的第一段同窗对话。")}</div>${pagination(page, result.total, 10)}</section><aside class="forum-aside"><section class="forum-ranking"><span class="eyebrow">ALUMNI LEADERBOARD</span><h2>同窗热议榜</h2><div class="category-filters"><button class="chip ${period === "all" ? "active" : ""}" data-ranking-period="all">总榜</button><button class="chip ${period === "week" ? "active" : ""}" data-ranking-period="week">近 7 天</button></div><p class="subtle">${period === "week" ? "近 7 天发布的帖子，" : "全部帖子，"}按有效回复数排序</p><ol>${ranking.items.map(p => `<li><a href="/forum?keyword=${encodeURIComponent(p.content.slice(0, 60))}"><strong>${esc(p.content.slice(0, 40))}</strong><span>${esc(p.nickname)} · ${p.reply_count} 条回复</span></a></li>`).join("") || '<li class="subtle">暂时还没有上榜帖子</li>'}</ol></section><div class="forum-welcome"><span class="eyebrow">A PLACE FOR ALL OF US</span><h3>话题不设限，<br>同窗情常在。</h3><p>聊母校，也聊远方。<br>分享喜悦，也诉说想念。</p><div class="forum-prompt">${icon("book")}那些年，最难忘的一节课</div><div class="forum-prompt">${icon("pin")}在同一座城市的你们</div><div class="forum-prompt">${icon("school")}想给学弟学妹的一点建议</div></div><div class="community-guide"><span class="eyebrow">KIND WORDS, WARM HEARTS</span><h3>让这里，像母校一样温暖</h3><p>尊重每一位同窗，友善表达。请勿发布他人隐私、广告或不当内容，公开内容采用先发后审。</p><a href="/privacy" class="text-link">社区与隐私说明 ${icon("up")}</a></div><div class="forum-mini-cta">还没有自己的校友卡？<a href="/register">写下近况，领取一份归属 ${icon("arrow")}</a></div></aside></div></div>`,
     bind(root) {
+      const search = root.querySelector("#post-search");
+      search.onsubmit = (event) => { event.preventDefault(); navigate(forumPath({keyword:search.elements.keyword.value.trim(),page:1})); };
+      root.querySelectorAll("[data-post-sort]").forEach(button => button.onclick = () => navigate(forumPath({sort:button.dataset.postSort,page:1})));
+      root.querySelectorAll("[data-ranking-period]").forEach(button => button.onclick = () => navigate(forumPath({period:button.dataset.rankingPeriod})));
       const form = root.querySelector("#post-form");
       bindPicker(form);
       const key = requestKey();
@@ -195,7 +209,7 @@ export async function forum(url) {
       root
         .querySelectorAll("[data-page]")
         .forEach(
-          (b) => (b.onclick = () => navigate(`/forum?page=${b.dataset.page}`)),
+          (b) => (b.onclick = () => navigate(forumPath({page:b.dataset.page}))),
         );
       root
         .querySelectorAll("[data-post-image]")
