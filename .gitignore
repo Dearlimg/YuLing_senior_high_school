@@ -1,0 +1,37 @@
+# 构建产物
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+yulin-server
+
+# 测试与覆盖率
+*.test
+*.out
+coverage.*
+
+# 依赖（本仓库是主模块，正常应提交 go.sum）
+vendor/
+
+# ---- 凭据：这一组是本文件最重要的部分 ----
+# 真实的 Secret 清单一旦提交，会永久留在 Git 历史里，
+# 删除文件并不能消除，只能改写历史。
+deploy/k8s/secret.yaml
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log
+logs/
