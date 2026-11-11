@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -15,8 +16,9 @@ import (
 // MySQL remains authoritative; cache errors always fall back to the underlying store.
 type RankedStore struct {
 	Store
-	client *redis.Client
-	prefix string
+	client      *redis.Client
+	prefix      string
+	lastWarning atomic.Int64
 }
 
 func NewRankedStore(store Store, client *redis.Client, prefix string) *RankedStore {
@@ -52,10 +54,16 @@ func (s *RankedStore) RankedPosts(ctx context.Context, period string) ([]model.P
 	defer cancel()
 	version, err := cacheGeneration(cacheCtx, s.client, s.prefix+"version")
 
+	if err != nil {
+		cacheWarning(ctx, &s.lastWarning, "ranking.version", err)
+	}
 	key := s.prefix + version + ":" + period
 	keys := []string{key, key + ":rows"}
 	if err == nil {
 		values, readErr := readRanking.Run(cacheCtx, s.client, keys).StringSlice()
+		if readErr != nil && readErr != redis.Nil {
+			cacheWarning(ctx, &s.lastWarning, "ranking.read", readErr)
+		}
 		if readErr == nil && len(values) > 0 {
 			rows := make([]model.Post, 0, len(values)-1)
 			valid := true
@@ -89,7 +97,9 @@ func (s *RankedStore) RankedPosts(ctx context.Context, period string) ([]model.P
 		}
 		writeCtx, writeCancel := context.WithTimeout(ctx, 200*time.Millisecond)
 		defer writeCancel()
-		_ = saveRanking.Run(writeCtx, s.client, keys, args...).Err()
+		if err := saveRanking.Run(writeCtx, s.client, keys, args...).Err(); err != nil {
+			cacheWarning(ctx, &s.lastWarning, "ranking.fill", err)
+		}
 	}
 	return rows[:min(len(rows), 10)], nil
 }
@@ -98,7 +108,9 @@ func (s *RankedStore) invalidateRanking(ctx context.Context) {
 	cacheCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cacheTimeout)
 	defer cancel()
 	// Generations prevent an in-flight pre-write read from repopulating the current leaderboard.
-	_ = bumpGeneration(cacheCtx, s.client, s.prefix+"version")
+	if err := bumpGeneration(cacheCtx, s.client, s.prefix+"version"); err != nil {
+		cacheWarning(ctx, &s.lastWarning, "ranking.invalidate", err)
+	}
 }
 
 func (s *RankedStore) CreatePost(ctx context.Context, row *model.Post) error {

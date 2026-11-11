@@ -1,12 +1,15 @@
 package controller
 
 import (
+	"context"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
+
+	"YuLing_senior_high_school/pkg/observability"
 )
 
 // HealthController 健康检查。
@@ -36,21 +39,27 @@ func (h *HealthController) Ready(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "mode": "demo", "persistence": "ephemeral"})
 		return
 	}
-	ctx := c.Request.Context()
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+	defer cancel()
 
 	sqlDB, err := h.db.DB()
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "degraded", "mysql": "no-handle", "detail": err.Error()})
+		readinessError(c, "mysql", "no-handle", err)
 		return
 	}
 	if err := sqlDB.PingContext(ctx); err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "degraded", "mysql": "down", "detail": err.Error()})
+		readinessError(c, "mysql", "down", err)
 		return
 	}
 	if err := h.rdb.Ping(ctx).Err(); err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "degraded", "redis": "down", "detail": err.Error()})
+		readinessError(c, "redis", "down", err)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "mysql": "up", "redis": "up"})
+}
+
+func readinessError(c *gin.Context, dependency, state string, err error) {
+	observability.Logger(c.Request.Context()).Warn("就绪检查失败", append([]any{"event", "readiness_error", "dependency", dependency}, observability.ErrorFields(err)...)...)
+	c.JSON(http.StatusServiceUnavailable, gin.H{"status": "degraded", dependency: state})
 }

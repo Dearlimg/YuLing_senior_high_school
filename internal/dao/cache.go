@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -19,9 +20,10 @@ const cacheTimeout = 200 * time.Millisecond
 // CachedStore caches public query projections. Identity, owner data and image bytes always hit MySQL.
 type CachedStore struct {
 	Store
-	client *redis.Client
-	prefix string
-	loads  singleflight.Group
+	client      *redis.Client
+	prefix      string
+	loads       singleflight.Group
+	lastWarning atomic.Int64
 }
 
 func NewCachedStore(store Store, client *redis.Client, prefix string) *CachedStore {
@@ -53,6 +55,7 @@ func cached[T any](ctx context.Context, s *CachedStore, kind string, query any, 
 	version, err := cacheGeneration(cacheCtx, s.client, s.prefix+"version")
 	cancel()
 	if err != nil {
+		cacheWarning(ctx, &s.lastWarning, "query.version", err)
 		return load()
 	}
 	encoded, _ := json.Marshal(query)
@@ -60,7 +63,11 @@ func cached[T any](ctx context.Context, s *CachedStore, kind string, query any, 
 	read := func() ([]byte, error) {
 		readCtx, readCancel := context.WithTimeout(ctx, cacheTimeout)
 		defer readCancel()
-		return s.client.Get(readCtx, key).Bytes()
+		data, err := s.client.Get(readCtx, key).Bytes()
+		if err != nil && err != redis.Nil {
+			cacheWarning(ctx, &s.lastWarning, "query.read", err)
+		}
+		return data, err
 	}
 	if data, readErr := read(); readErr == nil {
 		var value T
@@ -89,7 +96,9 @@ func cached[T any](ctx context.Context, s *CachedStore, kind string, query any, 
 			writeCtx, writeCancel := context.WithTimeout(ctx, cacheTimeout)
 			defer writeCancel()
 			ttl := time.Duration(60+int(sha256.Sum256([]byte(key))[0])%21) * time.Second
-			_ = s.client.Set(writeCtx, key, data, ttl).Err()
+			if err := s.client.Set(writeCtx, key, data, ttl).Err(); err != nil {
+				cacheWarning(ctx, &s.lastWarning, "query.fill", err)
+			}
 		}
 		return data, nil
 	})
@@ -104,7 +113,9 @@ func cached[T any](ctx context.Context, s *CachedStore, kind string, query any, 
 func (s *CachedStore) invalidate(ctx context.Context) {
 	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cacheTimeout)
 	defer cancel()
-	_ = bumpGeneration(writeCtx, s.client, s.prefix+"version")
+	if err := bumpGeneration(writeCtx, s.client, s.prefix+"version"); err != nil {
+		cacheWarning(ctx, &s.lastWarning, "query.invalidate", err)
+	}
 }
 
 func publicCard(row model.Alumni) model.Alumni {

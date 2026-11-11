@@ -3,13 +3,13 @@ package controller
 
 import (
 	"errors"
-	"log/slog"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 
 	"YuLing_senior_high_school/internal/logic"
+	"YuLing_senior_high_school/pkg/observability"
 	"YuLing_senior_high_school/pkg/resp"
 )
 
@@ -54,6 +54,9 @@ func (h *AlumniController) Update(c *gin.Context) {
 		return
 	}
 	result, err := h.logic.Update(c.Request.Context(), id, req)
+	if err == nil {
+		auditOperation(c, "alumni.legacy_update", id, 0)
+	}
 	respond(c, result, err)
 }
 func (h *AlumniController) Unlock(c *gin.Context) {
@@ -120,7 +123,7 @@ func respond(c *gin.Context, data any, err error) {
 		resp.Fail(c, http.StatusConflict, 40901, err.Error())
 	default:
 		// Do not log payloads or SQL errors that may contain contact or secret values.
-		slog.Error("业务操作失败", "route", c.FullPath())
+		observability.Logger(c.Request.Context()).Error("业务操作失败", append([]any{"event", "business_error", "route", c.FullPath()}, observability.ErrorFields(err)...)...)
 		resp.Internal(c, "服务暂时不可用，请稍后重试")
 	}
 }

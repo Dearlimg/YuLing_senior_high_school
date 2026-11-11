@@ -45,6 +45,7 @@ type LoginRequest struct {
 }
 
 type AuthResult struct {
+	UserID    uint64    `json:"-"`
 	Token     string    `json:"token"`
 	ExpiresAt time.Time `json:"expires_at"`
 	ID        uint64    `json:"id"`
@@ -149,7 +150,7 @@ func (l *AuthLogic) issue(ctx context.Context, user *model.User) (*AuthResult, e
 	if err := l.sessions.SaveSession(ctx, hash, user.ID, SessionTTL); err != nil {
 		return nil, err
 	}
-	return &AuthResult{Token: token, ExpiresAt: time.Now().Add(SessionTTL), ID: user.AlumniID}, nil
+	return &AuthResult{UserID: user.ID, Token: token, ExpiresAt: time.Now().Add(SessionTTL), ID: user.AlumniID}, nil
 }
 
 func (l *AuthLogic) Authenticate(ctx context.Context, token string) (*Actor, error) {

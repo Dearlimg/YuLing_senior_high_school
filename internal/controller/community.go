@@ -43,6 +43,9 @@ func (h *CommunityController) Upload(c *gin.Context) {
 		Caption: c.PostForm("caption"), Uploader: c.PostForm("uploader"),
 		Category: c.PostForm("category"), Image: image, Key: c.GetHeader("Idempotency-Key"),
 	})
+	if err == nil {
+		auditOperation(c, "photo.upload", result.ID, 0)
+	}
 	respond(c, result, err)
 }
 
@@ -59,6 +62,9 @@ func (h *CommunityController) DeletePhoto(c *gin.Context) {
 		return
 	}
 	err := h.logic.DeletePhoto(c.Request.Context(), id, req.DeleteCode)
+	if err == nil {
+		auditOperation(c, "photo.delete", id, 0)
+	}
 	respond(c, gin.H{"deleted": true}, err)
 }
 func (h *CommunityController) PhotoImage(c *gin.Context) {
@@ -102,6 +108,9 @@ func (h *CommunityController) CreatePost(c *gin.Context) {
 		Nickname: c.PostForm("nickname"), GraduationYear: year,
 		Content: c.PostForm("content"), Image: image, Key: c.GetHeader("Idempotency-Key"),
 	})
+	if err == nil {
+		auditOperation(c, "post.create", id, 0)
+	}
 	respond(c, gin.H{"id": id}, err)
 }
 func (h *CommunityController) PostImage(c *gin.Context) {
@@ -136,6 +145,9 @@ func (h *CommunityController) Reply(c *gin.Context) {
 		return
 	}
 	count, err := h.logic.Reply(c.Request.Context(), id, req, c.GetHeader("Idempotency-Key"))
+	if err == nil {
+		auditOperation(c, "post.reply", id, 0)
+	}
 	respond(c, gin.H{"reply_count": count}, err)
 }
 func (h *CommunityController) Moderate(c *gin.Context) {
@@ -149,6 +161,9 @@ func (h *CommunityController) Moderate(c *gin.Context) {
 		return
 	}
 	err := h.logic.Moderate(c.Request.Context(), c.Param("kind"), id, req)
+	if err == nil {
+		auditOperation(c, "moderation."+c.Param("kind")+"."+req.Action, id, 0)
+	}
 	respond(c, gin.H{"updated": true}, err)
 }
 func (h *CommunityController) AuditLogs(c *gin.Context) {

@@ -27,11 +27,13 @@ type Body struct {
 
 // OK 返回成功响应。
 func OK(c *gin.Context, data any) {
+	c.Set("business_code", CodeOK)
 	c.JSON(http.StatusOK, Body{Code: CodeOK, Msg: "ok", Data: data})
 }
 
 // Fail 返回业务失败响应，httpStatus 由调用方按语义决定。
 func Fail(c *gin.Context, httpStatus, code int, msg string) {
+	c.Set("business_code", code)
 	c.JSON(httpStatus, Body{Code: code, Msg: msg})
 }
 

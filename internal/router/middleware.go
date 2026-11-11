@@ -3,6 +3,7 @@ package router
 import (
 	"crypto/sha256"
 	"crypto/subtle"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -13,8 +14,8 @@ import (
 
 	"YuLing_senior_high_school/internal/dao"
 	"YuLing_senior_high_school/internal/logic"
+	"YuLing_senior_high_school/pkg/observability"
 	"YuLing_senior_high_school/pkg/resp"
-	"errors"
 )
 
 func securityHeaders() gin.HandlerFunc {
@@ -64,6 +65,7 @@ func writeGuard(limiter dao.Limiter) gin.HandlerFunc {
 		key := fmt.Sprintf("%x", sha256.Sum256([]byte(c.ClientIP()+":"+c.FullPath())))
 		allowed, err := limiter.Allow(c.Request.Context(), key, limit, period)
 		if err != nil {
+			observability.Logger(c.Request.Context()).Error("写操作限流不可用", append([]any{"event", "rate_limit_error"}, observability.ErrorFields(err)...)...)
 			resp.Fail(c, 503, 50301, "服务繁忙，请稍后重试")
 			c.Abort()
 			return
@@ -92,6 +94,7 @@ func adminGuard(token string) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+		c.Set("admin", true)
 		c.Next()
 	}
 }
@@ -109,6 +112,7 @@ func userGuard(auth *logic.AuthLogic) gin.HandlerFunc {
 			if errors.Is(err, logic.ErrUnauthorized) {
 				resp.Fail(c, 401, 40102, err.Error())
 			} else {
+				observability.Logger(c.Request.Context()).Error("会话验证不可用", append([]any{"event", "session_error"}, observability.ErrorFields(err)...)...)
 				resp.Fail(c, 503, 50301, "登录验证暂时不可用，请稍后重试")
 			}
 			c.Abort()

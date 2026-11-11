@@ -20,6 +20,9 @@ func (h *AuthController) Register(c *gin.Context) {
 		return
 	}
 	result, err := h.logic.Register(c.Request.Context(), req, c.GetHeader("Idempotency-Key"))
+	if err == nil {
+		auditOperation(c, "account.register", result.ID, result.UserID)
+	}
 	respond(c, result, err)
 }
 
@@ -30,11 +33,17 @@ func (h *AuthController) Login(c *gin.Context) {
 		return
 	}
 	result, err := h.logic.Login(c.Request.Context(), req)
+	if err == nil {
+		auditOperation(c, "account.login", result.ID, result.UserID)
+	}
 	respond(c, result, err)
 }
 
 func (h *AuthController) Logout(c *gin.Context) {
 	err := h.logic.Logout(c.Request.Context(), strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer "))
+	if err == nil {
+		auditOperation(c, "account.logout", 0, 0)
+	}
 	respond(c, gin.H{"logged_out": true}, err)
 }
 
@@ -50,5 +59,8 @@ func (h *AuthController) UpdateCard(c *gin.Context) {
 		return
 	}
 	result, err := h.logic.UpdateCard(c.Request.Context(), req)
+	if err == nil {
+		auditOperation(c, "alumni.update", result.ID, 0)
+	}
 	respond(c, result, err)
 }

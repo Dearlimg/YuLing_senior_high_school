@@ -19,3 +19,10 @@ func TestShortAdminTokenRejected(t *testing.T) {
 		t.Fatal("weak admin token accepted")
 	}
 }
+
+func TestInvalidLogLevelRejected(t *testing.T) {
+	t.Setenv("LOG_LEVEL", "verbose")
+	if _, err := Load(); err == nil {
+		t.Fatal("unknown log level accepted")
+	}
+}

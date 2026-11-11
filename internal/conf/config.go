@@ -112,6 +112,11 @@ func Load() (*Config, error) {
 // validate 校验必填项。密码允许为空（本地无密码 Redis），
 // 但数据库名、用户名这类结构性字段不允许缺失。
 func (c *Config) validate() error {
+	switch c.App.LogLevel {
+	case "debug", "info", "warn", "error":
+	default:
+		return fmt.Errorf("LOG_LEVEL 必须为 debug/info/warn/error")
+	}
 	if c.IsProd() && c.App.DemoMode {
 		return fmt.Errorf("生产环境禁止开启 DEMO_MODE")
 	}

@@ -5,8 +5,6 @@ package db
 import (
 	"context"
 	"fmt"
-	"log"
-	"os"
 	"time"
 
 	"gorm.io/driver/mysql"
@@ -20,18 +18,8 @@ import (
 // 注意：gorm.Open 默认是懒连接，这里显式 Ping 一次，
 // 让配置错误在启动期暴露，而不是拖到第一个请求才 500。
 func NewMySQL(cfg conf.MySQL, isProd bool) (*gorm.DB, error) {
-	logLevel := logger.Warn
-	if isProd {
-		logLevel = logger.Warn
-	}
-
 	gdb, err := gorm.Open(mysql.Open(cfg.DSN()), &gorm.Config{
-		Logger: logger.New(log.New(os.Stdout, "\r\n", log.LstdFlags), logger.Config{
-			LogLevel:                  logLevel,
-			SlowThreshold:             500 * time.Millisecond,
-			ParameterizedQueries:      true,
-			IgnoreRecordNotFoundError: true,
-		}),
+		Logger: queryLogger{level: logger.Warn},
 		// 表名不做复数化处理，表结构由 SQL 迁移文件显式定义，避免 GORM 擅自猜测。
 		NamingStrategy: nil,
 	})

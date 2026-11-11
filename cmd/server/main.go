@@ -64,7 +64,6 @@ func run() error {
 	}
 
 	slog.Info("配置加载完成",
-		"env", cfg.App.Env,
 		"port", cfg.App.Port,
 		"mysql", cfg.MySQL.Host+":"+cfg.MySQL.Port+"/"+cfg.MySQL.Database,
 		"redis", cfg.Redis.Addr,
@@ -180,5 +179,5 @@ func initLogger(cfg *conf.Config) {
 	} else {
 		handler = slog.NewTextHandler(os.Stdout, opts)
 	}
-	slog.SetDefault(slog.New(handler))
+	slog.SetDefault(slog.New(handler).With("service", "yulin", "env", cfg.App.Env))
 }

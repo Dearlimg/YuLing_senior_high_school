@@ -31,9 +31,9 @@ func New(d Deps) *gin.Engine {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	// 生产环境不挂 pprof / 详细日志中间件；Recovery 必开，避免 panic 打挂进程。
+	// Access and panic logs share the same request ID without dumping headers or request bodies.
 	r := gin.New()
-	r.Use(gin.Recovery())
+	r.Use(requestLogging(), recoveryLogging())
 	r.Use(securityHeaders())
 	if err := r.SetTrustedProxies(d.Config.App.TrustedProxies); err != nil {
 		panic(err)
