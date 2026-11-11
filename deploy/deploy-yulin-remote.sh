@@ -41,29 +41,34 @@ TAG="${IMAGE_REPO}:${SHA}"
 BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 echo "分支=$BRANCH 提交=$SHA"
 
-# ---------- 1/6 静态检查 + 测试 ----------
-step "1/6 静态检查 + 单元测试"
+# ---------- 1/7 静态检查 + 测试 ----------
+step "1/7 静态检查 + 单元测试"
 export GOPROXY=https://goproxy.cn,direct
 export GOFLAGS=-mod=mod
 
 go vet ./...
 ok "go vet 通过"
 
-# 目前没有测试文件，go test 会输出 "no test files" 并返回 0；
-# 一旦补上单测，这一步会自动变成真正的门禁，不需要改脚本。
+# 这里现在是真正的门禁：conf / dao / logic 都有单测，
+# 其中 dao 层用 sqlmock 校验 GORM 生成的 SQL 与事务边界，不需要真实数据库。
+# 任何一条失败都会让脚本在 set -e 下直接退出，不会带着坏代码往下走。
 go test ./... 2>&1 | tail -20
 ok "go test 通过"
 
-# ---------- 2/6 编译 ----------
-step "2/6 编译（linux/amd64 静态二进制）"
+# ---------- 2/7 编译 ----------
+step "2/7 编译（linux/amd64 静态二进制）"
 rm -rf "$BUILD"
 mkdir -p "$BUILD/bin" "$BUILD/build"
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
   go build -trimpath -ldflags="-s -w" -o "$BUILD/bin/server" ./cmd/server
-ok "编译完成 $(du -h "$BUILD/bin/server" | cut -f1)"
+# migrate 二进制单独编译：服务启动时会检查业务表是否就绪，缺表直接拒绝启动，
+# 所以迁移必须先于滚动发布执行，且用同一份代码编译，保证迁移逻辑和运行逻辑同源。
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+  go build -trimpath -ldflags="-s -w" -o "$BUILD/bin/migrate" ./cmd/migrate
+ok "编译完成 server=$(du -h "$BUILD/bin/server" | cut -f1) migrate=$(du -h "$BUILD/bin/migrate" | cut -f1)"
 
-# ---------- 3/6 构建镜像 ----------
-step "3/6 构建镜像 $TAG"
+# ---------- 3/7 构建镜像 ----------
+step "3/7 构建镜像 $TAG"
 # 复用仓库里的离线 Dockerfile：COPY 预编译二进制 + CA 证书，零网络依赖。
 # 宿主机的 docker 拉不到 docker.io（DNS 被污染），多阶段 Dockerfile 在这里不可用。
 cp deploy/Dockerfile.prebuilt "$BUILD/Dockerfile"
@@ -72,8 +77,8 @@ cp /etc/ssl/certs/ca-certificates.crt "$BUILD/build/ca-certificates.crt"
 DOCKER_BUILDKIT=0 docker build -q -t "$TAG" -t "${IMAGE_REPO}:latest" "$BUILD" > /dev/null
 ok "镜像构建完成 $(docker images --format '{{.Size}}' "$TAG" | head -1)"
 
-# ---------- 4/6 导入 containerd ----------
-step "4/6 导入 k3s containerd"
+# ---------- 4/7 导入 containerd ----------
+step "4/7 导入 k3s containerd"
 TAR=/tmp/yulin-${SHA}.tar
 docker save "$TAG" "${IMAGE_REPO}:latest" -o "$TAR"
 # 先删同 tag 再导入：避免 containerd 里同名 tag 残留导致 kubelet 解析到旧 digest。
@@ -84,8 +89,8 @@ rm -f "$TAR"
 k3s crictl images | grep "${IMAGE_REPO}" | head -3
 ok "镜像已导入"
 
-# ---------- 5/6 数据库备份 ----------
-step "5/6 部署前数据库备份（$DB_NAME）"
+# ---------- 5/7 数据库备份 ----------
+step "5/7 部署前数据库备份（$DB_NAME）"
 BK=/root/yulin-pre-upgrade-$(date +%Y%m%d-%H%M%S).sql.gz
 k3s kubectl exec -n infra deploy/mysql -- sh -c \
   "MYSQL_PWD='${DB_PASS}' mysqldump -u${DB_USER} --single-transaction --databases ${DB_NAME} 2>/dev/null | gzip > /tmp/pre-upgrade.sql.gz"
@@ -93,8 +98,29 @@ k3s kubectl exec -n infra deploy/mysql -- cat /tmp/pre-upgrade.sql.gz > "$BK"
 gzip -t "$BK" || { fail "备份文件损坏"; exit 1; }
 ok "备份 $BK ($(du -h "$BK" | cut -f1))"
 
-# ---------- 6/6 发布 + 验证 ----------
-step "6/6 更新镜像并滚动发布"
+# ---------- 6/7 同步配置 + 数据库迁移 ----------
+#
+# 迁移必须先于发布，顺序不可对调：
+#   服务启动时会校验业务表是否就绪，缺表直接拒绝启动（见 cmd/server/main.go）。
+#   如果先 set image 再迁移，新 Pod 会反复 CrashLoop，旧 Pod 顶在前面，
+#   rollout 最终超时回滚，白跑一轮还留下一个坏版本在 ReplicaSet 里。
+#
+# 迁移实现是 GORM 的 additive schema 变更（只加表、加列），
+# 所以可以放在流水线里自动执行。一旦将来出现破坏性变更
+# （删列、改类型、重命名），必须改成需要人工确认的独立 job，不能继续自动跑。
+step "6/7 同步 ConfigMap + 数据库迁移"
+
+k3s kubectl apply -f "$SRC/deploy/k8s/00-configmap.yaml" > /dev/null
+ok "ConfigMap 已同步"
+
+APP_ENV=prod \
+MYSQL_HOST=127.0.0.1 MYSQL_PORT=30306 \
+MYSQL_DATABASE="$DB_NAME" MYSQL_USER="$DB_USER" MYSQL_PASSWORD="$DB_PASS" \
+"$BUILD/bin/migrate"
+ok "数据库迁移完成"
+
+# ---------- 7/7 发布 + 验证 ----------
+step "7/7 更新镜像并滚动发布"
 PREV_IMAGE="$(k3s kubectl get deploy "$APP" -n "$NAMESPACE" -o jsonpath='{.spec.template.spec.containers[0].image}')"
 echo "上一版本镜像: $PREV_IMAGE"
 
