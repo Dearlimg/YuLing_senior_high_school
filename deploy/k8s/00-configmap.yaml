@@ -1,0 +1,47 @@
+# yulin-config：非敏感运行期配置
+#
+# 与 Secret 的边界（这条边界是本文件存在的唯一理由）：
+#   ConfigMap = 泄露了不造成直接损失的配置（地址、端口、库名、池大小、日志级别）
+#   Secret    = 泄露了等同于凭据泄露的值（密码、Token、私钥）
+#
+# 常见错误是把 MYSQL_PASSWORD 写进 ConfigMap "图省事"，
+# 结果 ConfigMap 在 `kubectl get cm -o yaml` 下明文可见，
+# 而且不会被 RBAC 的 secret 读权限保护住。
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: yulin-config
+  namespace: apps
+  labels:
+    app: yulin-server
+    app.kubernetes.io/part-of: yulin
+data:
+  # ---------- 应用 ----------
+  APP_ENV: "prod"
+  SERVER_PORT: "8080"
+  LOG_LEVEL: "info"
+  TZ: "Asia/Shanghai"
+  SHUTDOWN_TIMEOUT: "15s"
+
+  # ---------- MySQL ----------
+  # 集群内走 Service DNS，不写 IP、不写 NodePort：
+  # 后者会绕过 Service 的负载均衡与 Endpoint 健康剔除，
+  # 且节点重建后 IP 变化会直接打挂配置。
+  MYSQL_HOST: "mysql.infra.svc.cluster.local"
+  MYSQL_PORT: "3306"
+  MYSQL_DATABASE: "yulin"
+  # 用户名不算敏感信息（没有密码它无法登录），放这里便于运维直接查看。
+  MYSQL_USER: "yulin"
+  MYSQL_PARAMS: "charset=utf8mb4&parseTime=True&loc=Local&timeout=5s"
+  MYSQL_MAX_OPEN_CONNS: "20"
+  MYSQL_MAX_IDLE_CONNS: "10"
+  MYSQL_CONN_MAX_LIFETIME: "1h"
+
+  # ---------- Redis ----------
+  REDIS_ADDR: "redis.infra.svc.cluster.local:6379"
+  # DB 1 而非 DB 0：共享实例下按库号做逻辑隔离。
+  # 现有 blog / im-toy 等业务默认占 DB 0，本项目避开以免键空间互相覆盖。
+  REDIS_DB: "1"
+  # go-redis 没有内置 key 前缀能力，这个值由 dao 层在拼 key 时显式使用。
+  REDIS_KEY_PREFIX: "yulin:"
+  REDIS_POOL_SIZE: "10"

@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yulin-server
+  namespace: apps
+  labels:
+    app: yulin-server
+    app.kubernetes.io/part-of: yulin
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # 单副本场景下先起新 Pod 再停旧 Pod，避免发布期间全站不可用。
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: yulin-server
+  template:
+    metadata:
+      labels:
+        app: yulin-server
+      annotations:
+        # 变更触发滚动更新的版本标记，改这个值等价于 kubectl rollout restart
+        yulin.io/revision: "1"
+    spec:
+      # 镜像只在节点本地 containerd 中存在（无私有 registry），
+      # 因此固定到构建与导入镜像的那台节点，避免被调度到没有镜像的节点上一直 ImagePullBackOff。
+      nodeSelector:
+        kubernetes.io/hostname: liuliango8j251gfjuap
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: server
+          image: yulin-server:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+
+          # 配置注入的唯一入口：ConfigMap 提供非敏感项，Secret 提供凭据。
+          # 同名 key 时后者覆盖前者，所以两个来源的 key 不允许重复
+          # （重复会导致"改了 ConfigMap 却没生效"这种极难排查的问题）。
+          envFrom:
+            - configMapRef:
+                name: yulin-config
+            - secretRef:
+                name: yulin-secret
+
+          # 存活探针只问"进程活着吗"，绝不检查数据库。
+          # 让 liveness 依赖外部中间件，等于把 MySQL 的抖动翻译成 Pod 批量重启。
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          # 就绪探针才检查 MySQL / Redis，未就绪时从 Service Endpoints 摘除。
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              # Go 服务在小内存下的主要风险是 OOMKilled 而非 CPU 争抢，
+              # 内存上限必须给死；CPU 不设 limit 以避免被 CFS 限流引发毛刺。
+              memory: 256Mi
+
+          # 最小权限：不写根文件系统、不提权、丢弃全部 capabilities。
+          # 日志直接写 stdout，不需要任何可写目录，所以 readOnlyRootFilesystem 可以开。
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+
+          volumeMounts:
+            # 只读根文件系统下保留 /tmp，供 TLS 临时文件、os.CreateTemp 等使用。
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: yulin-server
+  namespace: apps
+  labels:
+    app: yulin-server
+    app.kubernetes.io/part-of: yulin
+spec:
+  # 默认 ClusterIP：只对集群内暴露。
+  # 需要公网访问时再叠加 Ingress 或 NodePort，不要在 Service 上直接开 NodePort
+  # ——NodePort 会占满所有节点的同一端口，且没有 TLS 与限流能力。
+  type: ClusterIP
+  selector:
+    app: yulin-server
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
