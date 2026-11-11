@@ -134,6 +134,49 @@ kubectl logs -f deploy/yulin-server -n apps
 后续接入 Gitea 的容器 registry 后，可以去掉 `nodeSelector` 并把镜像换成
 `121.40.235.227:3000/gao/yulin-server:<tag>`，实现多节点与版本可追溯。
 
+## 对外访问链路
+
+公网入口**不在 k8s 内**，而在阿里云 worker 节点的宿主机 nginx 上。完整链路：
+
+```
+121.40.235.227:8000
+  → 宿主机 nginx (listen 8000, /etc/nginx/sites-available/entry.conf)
+  → proxy_pass 127.0.0.1:18043      （SSH 隧道，已在 aliyun 上常驻）
+  → NAT VPS 的 k3s NodePort 30443
+  → Service yulin-server:8080
+  → Pod
+```
+
+这个结构不是自愿的：NodePort 30443 在公网**不可达**（云安全组未放行），
+只能靠 aliyun → NAT VPS 的 SSH 隧道穿进去。所以对外端口实际是云主机上的 **8000**，
+而"30443"只是隧道内的一跳。
+
+验证方式：
+
+```bash
+curl http://121.40.235.227:8000/health
+curl http://121.40.235.227:8000/ready
+```
+
+> 如果本机设置了 `HTTP_PROXY`，测试 POST 时可能被代理卡住（GET 正常、POST 超时），
+> 加 `--noproxy '*'` 排除干扰。这个坑排查时会误判成服务端问题。
+
+## 原 im-toy 服务的处置（2026-11-11）
+
+im-toy 曾占用 `8000 → 30443` 这条链路，现由本项目接管。处置方式是**缩容而非删除**：
+
+| 对象 | 状态 | 回滚方式 |
+| --- | --- | --- |
+| `deploy/im-toy-backend` | 缩容到 0 副本，对象保留 | `kubectl scale deploy/im-toy-backend -n apps --replicas=1` |
+| `deploy/im-toy-nginx` | 缩容到 0 副本，对象保留 | 同上，并重新 apply 备份的 Service |
+| `svc/im-toy-nginx` | **已删除**（释放 30443 端口） | `kubectl apply -f deploy/backup/im-toy-svc-im-toy-nginx.yaml` |
+| PVC `im-toy-public` | 保留 | 未动 |
+| MySQL 库 `im_chat` | 保留 | 未动 |
+
+回滚完整步骤：先 apply 备份 Service 会与 yulin 的 30443 冲突，
+必须先把 yulin 的 Service 改回 ClusterIP，顺序不能反。
+所有原始清单快照在 `deploy/backup/`。
+
 ## 已知取舍
 
 | 取舍 | 现状 | 理由 |

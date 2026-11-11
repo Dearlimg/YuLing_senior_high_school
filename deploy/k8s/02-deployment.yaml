@@ -109,10 +109,18 @@ metadata:
     app: yulin-server
     app.kubernetes.io/part-of: yulin
 spec:
-  # 默认 ClusterIP：只对集群内暴露。
-  # 需要公网访问时再叠加 Ingress 或 NodePort，不要在 Service 上直接开 NodePort
-  # ——NodePort 会占满所有节点的同一端口，且没有 TLS 与限流能力。
-  type: ClusterIP
+  # 从 2026-11-11 起接管原 im-toy-nginx 的对外端口（原 NodePort 80:30443）。
+  #
+  # 为什么改 NodePort 而不是继续用 ClusterIP：
+  #   本项目没有 Ingress Controller，也没有前置 nginx，
+  #   要对外可直接访问就只剩 NodePort 这一条路。30443 沿用旧端口是有意为之——
+  #   已经存在的客户端配置、书签、防火墙规则都不用改。
+  #
+  # 代价（必须知道）：
+  #   1) NodePort 会在**所有**节点上开这个端口，且不提供 TLS、限流、gzip；
+  #   2) 后续接入前端静态资源时，需要补一层 nginx 或上 Ingress，
+  #      而不是继续往这个 Service 上堆功能。
+  type: NodePort
   selector:
     app: yulin-server
   ports:
@@ -120,3 +128,6 @@ spec:
       port: 8080
       targetPort: http
       protocol: TCP
+      # 显式指定而非让 K8s 随机分配：随机端口每次重建都变，
+      # 对外地址会跟着漂移。30443 与原 im 服务保持一致。
+      nodePort: 30443

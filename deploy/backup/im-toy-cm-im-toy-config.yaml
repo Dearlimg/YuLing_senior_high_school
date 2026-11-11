@@ -1,0 +1,48 @@
+apiVersion: v1
+data:
+  config.yaml: |
+    server:
+      port: 8080
+      mode: release
+
+    database:
+      host: mysql.infra.svc.cluster.local
+      port: 3306
+      username: root
+      password: ""
+      database: im_chat
+      charset: utf8mb4
+      max_idle_conns: 10
+      max_open_conns: 100
+
+    redis:
+      host: redis.infra.svc.cluster.local
+      port: 6379
+      password: ""
+      db: 0
+      pool_size: 10
+
+    kafka:
+      brokers:
+        - "kafka.infra.svc.cluster.local:9092"
+      topic: "im_message"
+      topics:
+        group_msg_raw: "group-msg-raw"
+        group_msg_publish: "group-msg-publish"
+        private_msg: "private-msg"
+        read_events: "read-events"
+
+    jwt:
+      secret_key: ""
+      expire: 1800
+      refresh: 604800
+kind: ConfigMap
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","data":{"config.yaml":"server:\n  port: 8080\n  mode: release\n\ndatabase:\n  host: mysql.infra.svc.cluster.local\n  port: 3306\n  username: root\n  password: \"\"\n  database: im_chat\n  charset: utf8mb4\n  max_idle_conns: 10\n  max_open_conns: 100\n\nredis:\n  host: redis.infra.svc.cluster.local\n  port: 6379\n  password: \"\"\n  db: 0\n  pool_size: 10\n\nkafka:\n  brokers:\n    - \"kafka.infra.svc.cluster.local:9092\"\n  topic: \"im_message\"\n  topics:\n    group_msg_raw: \"group-msg-raw\"\n    group_msg_publish: \"group-msg-publish\"\n    private_msg: \"private-msg\"\n    read_events: \"read-events\"\n\njwt:\n  secret_key: \"\"\n  expire: 1800\n  refresh: 604800\n"},"kind":"ConfigMap","metadata":{"annotations":{},"name":"im-toy-config","namespace":"apps"}}
+  creationTimestamp: "2026-10-31T01:28:52Z"
+  name: im-toy-config
+  namespace: apps
+  resourceVersion: "570074"
+  uid: 6f74a358-dad6-4f00-9e28-4d637ee39832

@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"name":"im-toy-nginx","namespace":"apps"},"spec":{"ports":[{"name":"http","nodePort":30443,"port":80,"targetPort":80}],"selector":{"app":"im-toy-nginx"},"type":"NodePort"}}
+  creationTimestamp: "2026-10-31T01:28:54Z"
+  name: im-toy-nginx
+  namespace: apps
+  resourceVersion: "2417"
+  uid: 8da963bf-c5c5-4959-9d2b-877c2a4f9ad5
+spec:
+  clusterIP: 10.43.205.205
+  clusterIPs:
+  - 10.43.205.205
+  externalTrafficPolicy: Cluster
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: http
+    nodePort: 30443
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: im-toy-nginx
+  sessionAffinity: None
+  type: NodePort
+status:
+  loadBalancer: {}

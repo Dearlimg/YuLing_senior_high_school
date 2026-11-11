@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    deployment.kubernetes.io/revision: "13"
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"labels":{"app":"im-toy-backend"},"name":"im-toy-backend","namespace":"apps"},"spec":{"replicas":1,"selector":{"matchLabels":{"app":"im-toy-backend"}},"template":{"metadata":{"labels":{"app":"im-toy-backend"}},"spec":{"containers":[{"env":[{"name":"TZ","value":"Asia/Shanghai"},{"name":"DB_PASSWORD","valueFrom":{"secretKeyRef":{"key":"DB_PASSWORD","name":"im-toy-secret"}}},{"name":"REDIS_PASSWORD","valueFrom":{"secretKeyRef":{"key":"REDIS_PASSWORD","name":"im-toy-secret"}}},{"name":"JWT_SECRET","valueFrom":{"secretKeyRef":{"key":"JWT_SECRET","name":"im-toy-secret"}}}],"image":"im-toy-backend:latest","imagePullPolicy":"IfNotPresent","name":"backend","ports":[{"containerPort":8080}],"readinessProbe":{"httpGet":{"path":"/health","port":8080},"initialDelaySeconds":10,"periodSeconds":10,"timeoutSeconds":5},"resources":{"limits":{"memory":"512Mi"},"requests":{"cpu":"50m","memory":"128Mi"}},"volumeMounts":[{"mountPath":"/app/config","name":"config","readOnly":true}]}],"nodeSelector":{"kubernetes.io/hostname":"liuliango8j251gfjuap"},"volumes":[{"configMap":{"name":"im-toy-config"},"name":"config"}]}}}}
+  creationTimestamp: "2026-10-31T01:28:54Z"
+  generation: 13
+  labels:
+    app: im-toy-backend
+  name: im-toy-backend
+  namespace: apps
+  resourceVersion: "567970"
+  uid: fceff349-acbc-4b77-b292-f0b68447e1a0
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: im-toy-backend
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/restartedAt: "2026-11-10T20:09:01+08:00"
+      labels:
+        app: im-toy-backend
+    spec:
+      containers:
+      - env:
+        - name: TZ
+          value: Asia/Shanghai
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: DB_PASSWORD
+              name: im-toy-secret
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: REDIS_PASSWORD
+              name: im-toy-secret
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: JWT_SECRET
+              name: im-toy-secret
+        - name: PPROF_ADDR
+          value: 127.0.0.1:6060
+        image: im-toy-backend:latest
+        imagePullPolicy: IfNotPresent
+        name: backend
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /health
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 5
+        resources:
+          limits:
+            memory: 512Mi
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /app/config
+          name: config
+          readOnly: true
+      dnsPolicy: ClusterFirst
+      nodeSelector:
+        kubernetes.io/hostname: liuliango8j251gfjuap
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - configMap:
+          defaultMode: 420
+          name: im-toy-config
+        name: config
+status:
+  availableReplicas: 1
+  conditions:
+  - lastTransitionTime: "2026-10-31T12:26:49Z"
+    lastUpdateTime: "2026-10-31T12:26:49Z"
+    message: Deployment has minimum availability.
+    reason: MinimumReplicasAvailable
+    status: "True"
+    type: Available
+  - lastTransitionTime: "2026-10-31T01:28:54Z"
+    lastUpdateTime: "2026-11-10T12:09:13Z"
+    message: ReplicaSet "im-toy-backend-78dcdcdd94" has successfully progressed.
+    reason: NewReplicaSetAvailable
+    status: "True"
+    type: Progressing
+  observedGeneration: 13
+  readyReplicas: 1
+  replicas: 1
+  terminatingReplicas: 0
+  updatedReplicas: 1
