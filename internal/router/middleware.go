@@ -12,7 +12,9 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"YuLing_senior_high_school/internal/dao"
+	"YuLing_senior_high_school/internal/logic"
 	"YuLing_senior_high_school/pkg/resp"
+	"errors"
 )
 
 func securityHeaders() gin.HandlerFunc {
@@ -55,7 +57,7 @@ func writeGuard(limiter dao.Limiter) gin.HandlerFunc {
 		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 12<<20)
 		limit := 20
 		period := 10 * time.Minute
-		if strings.HasSuffix(c.FullPath(), "/unlock") {
+		if strings.HasSuffix(c.FullPath(), "/unlock") || strings.HasPrefix(c.FullPath(), "/api/v1/auth/") {
 			limit = 10
 			period = time.Minute
 		}
@@ -90,6 +92,30 @@ func adminGuard(token string) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+		c.Next()
+	}
+}
+
+func userGuard(auth *logic.AuthLogic) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		header := c.GetHeader("Authorization")
+		if !strings.HasPrefix(header, "Bearer ") {
+			resp.Fail(c, 401, 40102, "请先登录")
+			c.Abort()
+			return
+		}
+		actor, err := auth.Authenticate(c.Request.Context(), strings.TrimPrefix(header, "Bearer "))
+		if err != nil {
+			if errors.Is(err, logic.ErrUnauthorized) {
+				resp.Fail(c, 401, 40102, err.Error())
+			} else {
+				resp.Fail(c, 503, 50301, "登录验证暂时不可用，请稍后重试")
+			}
+			c.Abort()
+			return
+		}
+		c.Set("user_id", actor.UserID)
+		c.Request = c.Request.WithContext(logic.WithActor(c.Request.Context(), actor))
 		c.Next()
 	}
 }

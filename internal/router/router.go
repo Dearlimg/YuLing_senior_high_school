@@ -8,6 +8,7 @@ import (
 	"YuLing_senior_high_school/internal/conf"
 	"YuLing_senior_high_school/internal/controller"
 	"YuLing_senior_high_school/internal/dao"
+	"YuLing_senior_high_school/internal/logic"
 	"YuLing_senior_high_school/internal/web"
 	"YuLing_senior_high_school/pkg/resp"
 )
@@ -20,6 +21,8 @@ type Deps struct {
 	Alumni    *controller.AlumniController
 	Community *controller.CommunityController
 	Limiter   dao.Limiter
+	Auth      *controller.AuthController
+	AuthLogic *logic.AuthLogic
 }
 
 // New 构建 gin 引擎并注册全部路由。
@@ -53,19 +56,25 @@ func New(d Deps) *gin.Engine {
 		{
 			alumni.GET("", d.Alumni.List)
 			alumni.GET("/:id", d.Alumni.GetByID)
-			alumni.POST("", d.Alumni.Create)
+			alumni.POST("", d.Auth.Register)
 			alumni.PUT("/:id", d.Alumni.Update)
 			alumni.POST("/:id/unlock", d.Alumni.Unlock)
 		}
 		v1.GET("/photos", d.Community.Photos)
-		v1.POST("/photos", d.Community.Upload)
-		v1.DELETE("/photos/:id", d.Community.DeletePhoto)
+		v1.POST("/auth/register", d.Auth.Register)
+		v1.POST("/auth/login", d.Auth.Login)
+		signed := v1.Group("", userGuard(d.AuthLogic))
+		signed.GET("/me", d.Auth.Me)
+		signed.PUT("/me/alumni", d.Auth.UpdateCard)
+		signed.POST("/auth/logout", d.Auth.Logout)
+		signed.POST("/photos", d.Community.Upload)
+		signed.DELETE("/photos/:id", d.Community.DeletePhoto)
 		v1.GET("/photos/:id/image", d.Community.PhotoImage)
 		v1.GET("/posts", d.Community.Posts)
-		v1.POST("/posts", d.Community.CreatePost)
+		signed.POST("/posts", d.Community.CreatePost)
 		v1.GET("/posts/:id/image", d.Community.PostImage)
 		v1.GET("/posts/:id/replies", d.Community.Replies)
-		v1.POST("/posts/:id/replies", d.Community.Reply)
+		signed.POST("/posts/:id/replies", d.Community.Reply)
 		admin := v1.Group("/admin", adminGuard(d.Config.App.AdminToken))
 		admin.PUT("/:kind/:id", d.Community.Moderate)
 		admin.GET("/:kind/:id", d.Community.Inspect)

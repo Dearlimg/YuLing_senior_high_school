@@ -27,7 +27,7 @@ import (
 var (
 	ErrInvalidParam = errors.New("参数不合法")
 	ErrNotFound     = errors.New("资源不存在")
-	ErrForbidden    = errors.New("编辑码或删除码不正确")
+	ErrForbidden    = errors.New("无权修改此内容，请使用自己的账号或有效的旧管理码")
 	ErrDuplicate    = errors.New("这份内容已提交，请勿重复操作")
 )
 

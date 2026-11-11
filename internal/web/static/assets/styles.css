@@ -4371,3 +4371,9 @@ dialog .field {
     gap: 3px;
   }
 }
+
+.auth-page { max-width: 680px; }
+.auth-page .form-panel { padding: 32px; }
+.account-bar { display:flex; align-items:center; justify-content:space-between; gap:16px; padding-top:32px; }
+.account-bar span { margin-left:18px; color:var(--muted); }
+#account-link { white-space:nowrap; }

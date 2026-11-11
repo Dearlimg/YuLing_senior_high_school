@@ -13,14 +13,16 @@ import (
 
 // MemoryStore is an explicit, ephemeral demo/test store. Production never falls back to it.
 type MemoryStore struct {
-	mu      sync.Mutex
-	alumni  map[uint64]model.Alumni
-	photos  map[uint64]model.Photo
-	posts   map[uint64]model.Post
-	replies map[uint64]model.Reply
-	audits  []model.AuditLog
-	keys    map[string]bool
-	rates   map[string]rateWindow
+	users    map[uint64]model.User
+	sessions map[string]memorySession
+	mu       sync.Mutex
+	alumni   map[uint64]model.Alumni
+	photos   map[uint64]model.Photo
+	posts    map[uint64]model.Post
+	replies  map[uint64]model.Reply
+	audits   []model.AuditLog
+	keys     map[string]bool
+	rates    map[string]rateWindow
 }
 
 type rateWindow struct {
@@ -30,6 +32,7 @@ type rateWindow struct {
 
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
+		users: map[uint64]model.User{}, sessions: map[string]memorySession{},
 		alumni: map[uint64]model.Alumni{}, photos: map[uint64]model.Photo{},
 		posts: map[uint64]model.Post{}, replies: map[uint64]model.Reply{},
 		audits: []model.AuditLog{}, keys: map[string]bool{}, rates: map[string]rateWindow{},
@@ -118,7 +121,7 @@ func (s *MemoryStore) UpdateAlumni(_ context.Context, row *model.Alumni) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	old, ok := s.alumni[row.ID]
-	if !ok || old.Status != "active" {
+	if !ok || old.Status != "active" || old.EditCodeHash != row.EditCodeHash {
 		return ErrNotFound
 	}
 	row.CreatedAt = old.CreatedAt

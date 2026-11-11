@@ -21,12 +21,14 @@ import (
 func testEngine() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	store := dao.NewMemoryStore()
+	auth := logic.NewAuthLogic(store, store)
 	return New(Deps{
 		Config:    &conf.Config{App: conf.App{Env: "test", DemoMode: true}},
 		Health:    controller.NewHealthController(nil, nil),
 		Alumni:    controller.NewAlumniController(logic.NewAlumniLogic(store)),
 		Community: controller.NewCommunityController(logic.NewCommunityLogic(store)),
 		Limiter:   store,
+		Auth:      controller.NewAuthController(auth), AuthLogic: auth,
 	})
 }
 
@@ -65,7 +67,7 @@ func TestEmbeddedPagesAndAPIBoundary(t *testing.T) {
 func TestHTTPRegistrationPrivacyAndUnlockRateLimit(t *testing.T) {
 	router := testEngine()
 	response := httptest.NewRecorder()
-	body := `{"name":"接口校友","graduation_year":2018,"phone":"13800138000","wechat":"secret-wechat","email":"private@example.com"}`
+	body := `{"account":"http_test","password":"password123","name":"接口校友","graduation_year":2018,"phone":"13800138000","wechat":"secret-wechat","email":"private@example.com"}`
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/alumni", strings.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(response, request)
@@ -73,7 +75,7 @@ func TestHTTPRegistrationPrivacyAndUnlockRateLimit(t *testing.T) {
 		t.Fatal(response.Body.String())
 	}
 	var created struct {
-		Data logic.CreateResult `json:"data"`
+		Data logic.AuthResult `json:"data"`
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &created); err != nil {
 		t.Fatal(err)
@@ -81,7 +83,7 @@ func TestHTTPRegistrationPrivacyAndUnlockRateLimit(t *testing.T) {
 	for _, path := range []string{"/api/v1/alumni", fmt.Sprintf("/api/v1/alumni/%d", created.Data.ID)} {
 		public := httptest.NewRecorder()
 		router.ServeHTTP(public, httptest.NewRequest(http.MethodGet, path, nil))
-		for _, forbidden := range []string{"13800138000", "secret-wechat", "private@example.com", created.Data.EditCode} {
+		for _, forbidden := range []string{"13800138000", "secret-wechat", "private@example.com", created.Data.Token} {
 			if strings.Contains(public.Body.String(), forbidden) {
 				t.Fatal("public HTTP response leaked private field")
 			}
@@ -115,5 +117,57 @@ func TestCrossOriginAndUnconfiguredAdminRejected(t *testing.T) {
 	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/admin/audit", nil))
 	if response.Code != 503 {
 		t.Fatal("unconfigured admin must be disabled")
+	}
+}
+
+func TestProtectedRoutesAndOwnerProfile(t *testing.T) {
+	router := testEngine()
+	for _, path := range []string{"/api/v1/posts", "/api/v1/photos", "/api/v1/posts/1/replies"} {
+		result := httptest.NewRecorder()
+		router.ServeHTTP(result, httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{}`)))
+		if result.Code != 401 {
+			t.Fatalf("anonymous write %s: %d", path, result.Code)
+		}
+	}
+	result := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", strings.NewReader(
+		`{"account":"owner_user","password":"password123","name":"本人","graduation_year":2018,"phone":"13800138000"}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(result, req)
+	if result.Code != 200 {
+		t.Fatal(result.Body.String())
+	}
+	var body struct {
+		Data logic.AuthResult `json:"data"`
+	}
+	if err := json.Unmarshal(result.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	call := func(method, path, payload string) *httptest.ResponseRecorder {
+		t.Helper()
+		r := httptest.NewRequest(method, path, strings.NewReader(payload))
+		r.Header.Set("Authorization", "Bearer "+body.Data.Token)
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, r)
+		return w
+	}
+	me := call(http.MethodGet, "/api/v1/me", "")
+	if me.Code != 200 || !strings.Contains(me.Body.String(), "13800138000") {
+		t.Fatal("owner profile missing")
+	}
+	changed := call(http.MethodPut, "/api/v1/me/alumni", `{"id":999,"name":"更新本人","graduation_year":2018}`)
+	if changed.Code != 200 || !strings.Contains(changed.Body.String(), fmt.Sprintf(`"id":%d`, body.Data.ID)) {
+		t.Fatal("owner endpoint accepted forged ID")
+	}
+	legacy := call(http.MethodPut, fmt.Sprintf("/api/v1/alumni/%d", body.Data.ID), `{"name":"越权","graduation_year":2018,"edit_code":""}`)
+	if legacy.Code != 403 {
+		t.Fatal("account card editable without owner authentication")
+	}
+	if call(http.MethodPost, "/api/v1/auth/logout", "{}").Code != 200 {
+		t.Fatal("logout failed")
+	}
+	if call(http.MethodGet, "/api/v1/me", "").Code != 401 {
+		t.Fatal("logout did not revoke token")
 	}
 }

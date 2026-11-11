@@ -77,12 +77,13 @@ func run() error {
 	var rdb *redis.Client
 	var store dao.Store
 	var limiter dao.Limiter
+	var sessions dao.SessionStore
 	if cfg.App.DemoMode {
 		memory := dao.NewMemoryStore()
 		if err := demo.Seed(memory); err != nil {
 			return err
 		}
-		store, limiter = memory, memory
+		store, limiter, sessions = memory, memory, memory
 		slog.Warn("演示模式：人物资料为虚构，数据仅在进程内保存，重启后重置")
 	} else {
 		gdb, err = db.NewMySQL(cfg.MySQL, cfg.IsProd())
@@ -104,9 +105,11 @@ func run() error {
 		}
 		store = sqlStore
 		limiter = dao.NewRedisLimiter(rdb, cfg.Redis.KeyPrefix)
+		sessions = dao.NewRedisSessions(rdb, cfg.Redis.KeyPrefix)
 	}
 
 	// 3. 分层装配。
+	authLogic := logic.NewAuthLogic(store, sessions)
 	alumniLogic := logic.NewAlumniLogic(store)
 	communityLogic := logic.NewCommunityLogic(store)
 
@@ -116,6 +119,8 @@ func run() error {
 		Alumni:    controller.NewAlumniController(alumniLogic),
 		Community: controller.NewCommunityController(communityLogic),
 		Limiter:   limiter,
+		Auth:      controller.NewAuthController(authLogic),
+		AuthLogic: authLogic,
 	})
 
 	srv := &http.Server{

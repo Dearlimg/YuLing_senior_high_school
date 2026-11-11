@@ -1,4 +1,4 @@
-import { api, compressImage, requestKey } from "./api.js";
+import { api, compressImage, requestKey, session } from "./api.js";
 import { icon } from "./icons.js";
 import {
   avatar,
@@ -61,12 +61,13 @@ export async function moments(url) {
   );
   const categories = ["校园风景", "老照片", "运动场上", "其他"];
   return {
-    html: `<div class="wrap page-content">${sectionHead("CAMPUS MOMENTS", "把时光，留在校园里", "教学楼前的合影、运动会的冲刺、毕业那天的教室。总有一帧画面，让我们回到从前。", '<button class="button primary" id="upload-photo">' + icon("plus") + "分享一张照片</button>")}<div class="moments-intro"><div><span class="eyebrow">OUR SHARED MEMORIES</span><h2>记忆会泛黄，<br>而青春始终明亮。</h2><p>所有榆中人共享的照片墙，<br>让散落的光影，汇成我们共同的相册。</p></div><img src="/assets/campus-detail.jpg" alt="榆林中学校园历史影像" width="720" height="320"/><span class="moments-intro-label">岁月留声 · 榆中记忆</span></div><div class="section-heading album-heading"><div><h2>共享相册 <span class="count-label">${result.total} 张照片</span></h2></div><div class="category-filters">${["", ...categories].map((c) => `<button class="chip ${category === c ? "active" : ""}" data-category="${c}" aria-pressed="${category === c}">${c || "全部记忆"}</button>`).join("")}</div></div>${result.items.length ? `<div class="photo-columns">${result.items.map((p) => `<article class="photo-card"><button class="photo-open" data-image="${esc(p.image_url)}" data-caption="${esc(p.caption)}" aria-label="预览：${esc(p.caption)}"><img src="${esc(p.image_url)}" alt="${esc(p.caption)}" loading="lazy"/></button><div class="photo-card-info"><span class="photo-category">${esc(p.category)}</span><h3>${esc(p.caption)}</h3><div><span>${esc(p.uploader)} <i>·</i> ${dateLabel(p.created_at)}</span><button class="text-link manage-photo" data-id="${p.id}">管理照片</button></div></div></article>`).join("")}</div>` : empty("这里，等一张你的校园记忆", "第一张照片，也许就是故事的开始。", '<button class="button primary" id="empty-upload">分享照片</button>')}${pagination(page, result.total, 12)}<p class="privacy-note">${icon("image")}照片对所有人可见，先发后审。请勿上传未获许可的照片或他人隐私。上传后请保存删除码。</p><p class="image-credit">校园历史影像来源：<a href="https://web.sjpt.ylrb.com/cms/rmt2420/2/2xw/yl/387623.shtml" target="_blank" rel="noopener noreferrer">榆林日报 · 榆林中学 120 周年专题</a></p></div>`,
+    html: `<div class="wrap page-content">${sectionHead("CAMPUS MOMENTS", "把时光，留在校园里", "教学楼前的合影、运动会的冲刺、毕业那天的教室。总有一帧画面，让我们回到从前。", '<button class="button primary" id="upload-photo">' + icon("plus") + "分享一张照片</button>")}<div class="moments-intro"><div><span class="eyebrow">OUR SHARED MEMORIES</span><h2>记忆会泛黄，<br>而青春始终明亮。</h2><p>所有榆中人共享的照片墙，<br>让散落的光影，汇成我们共同的相册。</p></div><img src="/assets/campus-detail.jpg" alt="榆林中学校园历史影像" width="720" height="320"/><span class="moments-intro-label">岁月留声 · 榆中记忆</span></div><div class="section-heading album-heading"><div><h2>共享相册 <span class="count-label">${result.total} 张照片</span></h2></div><div class="category-filters">${["", ...categories].map((c) => `<button class="chip ${category === c ? "active" : ""}" data-category="${c}" aria-pressed="${category === c}">${c || "全部记忆"}</button>`).join("")}</div></div>${result.items.length ? `<div class="photo-columns">${result.items.map((p) => `<article class="photo-card"><button class="photo-open" data-image="${esc(p.image_url)}" data-caption="${esc(p.caption)}" aria-label="预览：${esc(p.caption)}"><img src="${esc(p.image_url)}" alt="${esc(p.caption)}" loading="lazy"/></button><div class="photo-card-info"><span class="photo-category">${esc(p.category)}</span><h3>${esc(p.caption)}</h3><div><span>${esc(p.uploader)} <i>·</i> ${dateLabel(p.created_at)}</span><button class="text-link manage-photo" data-id="${p.id}">管理照片</button></div></div></article>`).join("")}</div>` : empty("这里，等一张你的校园记忆", "第一张照片，也许就是故事的开始。", '<button class="button primary" id="empty-upload">分享照片</button>')}${pagination(page, result.total, 12)}<p class="privacy-note">${icon("image")}照片对所有人可见，先发后审。请勿上传未获许可的照片或他人隐私。登录后可以撤下自己上传的照片。</p><p class="image-credit">校园历史影像来源：<a href="https://web.sjpt.ylrb.com/cms/rmt2420/2/2xw/yl/387623.shtml" target="_blank" rel="noopener noreferrer">榆林日报 · 榆林中学 120 周年专题</a></p></div>`,
     bind(root) {
       const openUpload = () => {
+        if (!session()) { navigate("/login?next=/moments"); return; }
         modal(
           "分享一帧校园记忆",
-          `<p class="modal-description">让回忆有个归处。上传内容对所有人可见，先发后审。</p><form id="photo-form">${imagePicker(true)}${field("照片说明", "caption", { required: true, placeholder: "为这段时光写一句话", max: 80 })}<div class="form-grid">${field("上传人", "uploader", { required: true, placeholder: "你的名字或昵称", max: 30 })}<label class="field">照片分类<select name="category">${categories.map((c) => `<option>${c}</option>`).join("")}</select></label></div><p class="form-error" role="alert" tabindex="-1" hidden></p><button class="button primary full-width" type="submit">${icon("upload")}上传到校园映像</button><small class="form-submit-note">成功后将生成删除码，请妥善保管。</small></form>`,
+          `<p class="modal-description">让回忆有个归处。上传内容对所有人可见，先发后审。</p><form id="photo-form">${imagePicker(true)}${field("照片说明", "caption", { required: true, placeholder: "为这段时光写一句话", max: 80 })}<div class="form-grid"><p class="subtle">上传人使用你的校友卡姓名</p><label class="field">照片分类<select name="category">${categories.map((c) => `<option>${c}</option>`).join("")}</select></label></div><p class="form-error" role="alert" tabindex="-1" hidden></p><button class="button primary full-width" type="submit">${icon("upload")}上传到校园映像</button><small class="form-submit-note">上传后可使用当前账号撤下自己的照片。</small></form>`,
         );
         const f = document.querySelector("#photo-form");
         bindPicker(f);
@@ -82,12 +83,7 @@ export async function moments(url) {
               body: data,
             });
             await render();
-            secretDialog(
-              "这一帧，已为你珍藏",
-              saved.delete_code,
-              "照片已进入共享相册。请保存删除码，今后可凭码撤下这张照片。",
-              '<button class="button primary" data-action="close-modal">我已保存</button>',
-            );
+            toast("照片已上传，可使用当前账号管理。");
           });
         };
       };
@@ -127,9 +123,10 @@ export async function moments(url) {
       root.querySelectorAll(".manage-photo").forEach(
         (b) =>
           (b.onclick = () => {
+            if (!session()) { navigate("/login?next=/moments"); return; }
             modal(
               "撤下我的照片",
-              `<p class="modal-description">输入上传时保存的删除码。撤下后，该照片将不再公开展示。</p><form id="delete-photo-form">${field("删除码", "delete_code", { required: true, type: "password", max: 80, placeholder: "请输入这张照片的删除码" })}<label class="checkbox-field"><input type="checkbox" required/><span>我确认要撤下这张照片</span></label><p class="form-error" role="alert" tabindex="-1" hidden></p><button class="button primary full-width" type="submit">确认撤下</button></form>`,
+              `<p class="modal-description">登录后可撤下自己上传的照片；旧照片还需提供上传时保存的删除码。撤下后将不再公开展示。</p><form id="delete-photo-form">${field("删除码（仅旧照片需要）", "delete_code", { required: false, type: "password", max: 80, placeholder: "请输入这张照片的删除码" })}<label class="checkbox-field"><input type="checkbox" required/><span>我确认要撤下这张照片</span></label><p class="form-error" role="alert" tabindex="-1" hidden></p><button class="button primary full-width" type="submit">确认撤下</button></form>`,
             );
             document.querySelector("#delete-photo-form").onsubmit = (e) => {
               e.preventDefault();
@@ -159,7 +156,7 @@ export async function forum(url) {
   const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
   const result = await api(`/posts?page=${page}&page_size=10`);
   return {
-    html: `<div class="wrap page-content">${sectionHead("THE ALUMNI COMMON ROOM", "同窗之间，总有话想说", "想说的、想找的、想聊的，都发在这里。把这里当作课间走廊，和老同学聊聊近况。")}<div class="forum-layout"><section><div class="composer-card"><div class="composer-title">${icon("chat")}<h2>今天，想和同窗说些什么？</h2><small>发帖无需登录</small></div><form id="post-form"><div class="form-grid">${field("昵称", "nickname", { required: true, placeholder: "让同窗认出你", max: 20 })}${field("毕业届别", "graduation_year", { placeholder: "如 2018", type: "number" })}</div><label class="field"><span class="sr-only">帖子正文</span><textarea name="content" required maxlength="500" rows="4" placeholder="想对母校、老师或同学说点什么…"></textarea><small class="character-count"><span id="post-count">0</span> / 500</small></label><div id="post-image-picker" hidden>${imagePicker()}</div><div class="composer-bottom"><button class="text-link" id="toggle-post-image" type="button">${icon("image")}配一张图</button><span>每一句近况，都有人愿意听。</span><button class="button primary" type="submit">发布 ${icon("arrow")}</button></div><p class="form-error" role="alert" tabindex="-1" hidden></p></form></div><div class="section-heading post-list-heading"><h2>最新帖子 <span class="count-label">${result.total} 条</span></h2><span class="subtle">听听大家的新鲜事</span></div><div class="post-list">${result.items.map(postCard).join("") || empty("课间走廊还很安静", "来留个言，开启今天的第一段同窗对话。")}</div>${pagination(page, result.total, 10)}</section><aside class="forum-aside"><div class="forum-welcome"><span class="eyebrow">A PLACE FOR ALL OF US</span><h3>话题不设限，<br>同窗情常在。</h3><p>聊母校，也聊远方。<br>分享喜悦，也诉说想念。</p><div class="forum-prompt">${icon("book")}那些年，最难忘的一节课</div><div class="forum-prompt">${icon("pin")}在同一座城市的你们</div><div class="forum-prompt">${icon("school")}想给学弟学妹的一点建议</div></div><div class="community-guide"><span class="eyebrow">KIND WORDS, WARM HEARTS</span><h3>让这里，像母校一样温暖</h3><p>尊重每一位同窗，友善表达。请勿发布他人隐私、广告或不当内容，公开内容采用先发后审。</p><a href="/privacy" class="text-link">社区与隐私说明 ${icon("up")}</a></div><div class="forum-mini-cta">还没有自己的校友卡？<a href="/register">写下近况，领取一份归属 ${icon("arrow")}</a></div></aside></div></div>`,
+    html: `<div class="wrap page-content">${sectionHead("THE ALUMNI COMMON ROOM", "同窗之间，总有话想说", "想说的、想找的、想聊的，都发在这里。把这里当作课间走廊，和老同学聊聊近况。")}<div class="forum-layout"><section><div class="composer-card"><div class="composer-title">${icon("chat")}<h2>今天，想和同窗说些什么？</h2><small>登录后以校友卡身份发帖</small></div><form id="post-form"><div class="form-grid"><p class="subtle">姓名与届别使用你的校友卡信息。<a href="/me">前往个人中心</a></p></div><label class="field"><span class="sr-only">帖子正文</span><textarea name="content" required maxlength="500" rows="4" placeholder="想对母校、老师或同学说点什么…"></textarea><small class="character-count"><span id="post-count">0</span> / 500</small></label><div id="post-image-picker" hidden>${imagePicker()}</div><div class="composer-bottom"><button class="text-link" id="toggle-post-image" type="button">${icon("image")}配一张图</button><span>每一句近况，都有人愿意听。</span><button class="button primary" type="submit">发布 ${icon("arrow")}</button></div><p class="form-error" role="alert" tabindex="-1" hidden></p></form></div><div class="section-heading post-list-heading"><h2>最新帖子 <span class="count-label">${result.total} 条</span></h2><span class="subtle">听听大家的新鲜事</span></div><div class="post-list">${result.items.map(postCard).join("") || empty("课间走廊还很安静", "来留个言，开启今天的第一段同窗对话。")}</div>${pagination(page, result.total, 10)}</section><aside class="forum-aside"><div class="forum-welcome"><span class="eyebrow">A PLACE FOR ALL OF US</span><h3>话题不设限，<br>同窗情常在。</h3><p>聊母校，也聊远方。<br>分享喜悦，也诉说想念。</p><div class="forum-prompt">${icon("book")}那些年，最难忘的一节课</div><div class="forum-prompt">${icon("pin")}在同一座城市的你们</div><div class="forum-prompt">${icon("school")}想给学弟学妹的一点建议</div></div><div class="community-guide"><span class="eyebrow">KIND WORDS, WARM HEARTS</span><h3>让这里，像母校一样温暖</h3><p>尊重每一位同窗，友善表达。请勿发布他人隐私、广告或不当内容，公开内容采用先发后审。</p><a href="/privacy" class="text-link">社区与隐私说明 ${icon("up")}</a></div><div class="forum-mini-cta">还没有自己的校友卡？<a href="/register">写下近况，领取一份归属 ${icon("arrow")}</a></div></aside></div></div>`,
     bind(root) {
       const form = root.querySelector("#post-form");
       bindPicker(form);
@@ -177,6 +174,7 @@ export async function forum(url) {
       };
       form.onsubmit = (e) => {
         e.preventDefault();
+        if (!session()) { navigate("/login?next=/forum"); return; }
         busy(form, async () => {
           const data = new FormData(form);
           if (form.elements.image.files[0])
@@ -229,11 +227,12 @@ export async function forum(url) {
                 const replies = await api(
                   `/posts/${b.dataset.post}/replies?page=${replyPage}&page_size=20`,
                 );
-                box.innerHTML = `<div class="reply-list">${replies.items.map((r) => `<div class="reply-item">${avatar({ name: r.nickname }, "small")}<div><strong>${esc(r.nickname)}</strong><small>${dateLabel(r.created_at)}</small><p>${esc(r.content)}</p></div></div>`).join("") || '<p class="subtle">还没有回复，来说第一句话吧。</p>'}</div><div class="reply-pagination">${replyPage > 1 ? '<button class="text-link" data-reply-page="prev">← 上一页回复</button>' : ""}${replies.has_more ? '<button class="text-link" data-reply-page="next">下一页回复 →</button>' : ""}</div><form class="reply-form"><input name="nickname" required maxlength="20" placeholder="你的昵称" aria-label="回复昵称"/><textarea name="content" rows="2" required maxlength="500" placeholder="和这位同窗说句话…" aria-label="回复内容"></textarea><p class="form-error" role="alert" tabindex="-1" hidden></p><button type="submit" class="button primary">发送回复 ${icon("arrow")}</button></form>`;
+                box.innerHTML = `<div class="reply-list">${replies.items.map((r) => `<div class="reply-item">${avatar({ name: r.nickname }, "small")}<div><strong>${esc(r.nickname)}</strong><small>${dateLabel(r.created_at)}</small><p>${esc(r.content)}</p></div></div>`).join("") || '<p class="subtle">还没有回复，来说第一句话吧。</p>'}</div><div class="reply-pagination">${replyPage > 1 ? '<button class="text-link" data-reply-page="prev">← 上一页回复</button>' : ""}${replies.has_more ? '<button class="text-link" data-reply-page="next">下一页回复 →</button>' : ""}</div><form class="reply-form"><small>以当前校友卡姓名回复</small><textarea name="content" rows="2" required maxlength="500" placeholder="和这位同窗说句话…" aria-label="回复内容"></textarea><p class="form-error" role="alert" tabindex="-1" hidden></p><button type="submit" class="button primary">发送回复 ${icon("arrow")}</button></form>`;
                 const rf = box.querySelector("form");
                 const replyKey = requestKey();
                 rf.onsubmit = (e) => {
                   e.preventDefault();
+                  if (!session()) { navigate("/login?next=/forum"); return; }
                   busy(rf, async () => {
                     const reply = await api(
                       `/posts/${b.dataset.post}/replies`,

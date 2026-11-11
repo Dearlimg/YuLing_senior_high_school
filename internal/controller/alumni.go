@@ -110,6 +110,8 @@ func respond(c *gin.Context, data any, err error) {
 		resp.BadRequest(c, err.Error())
 	case errors.Is(err, logic.ErrNotFound):
 		resp.NotFound(c, "内容不存在或已撤下")
+	case errors.Is(err, logic.ErrUnauthorized):
+		resp.Fail(c, http.StatusUnauthorized, 40102, "账号或密码不正确，或登录已过期，请重新登录")
 	case errors.Is(err, logic.ErrForbidden):
 		resp.Fail(c, http.StatusForbidden, 40301, err.Error())
 	case errors.Is(err, logic.ErrDuplicate):

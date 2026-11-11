@@ -1,7 +1,7 @@
-import { api } from "./api.js";
+import { api, session } from "./api.js";
 import { loading, errorState, closeModal } from "./ui.js";
 import { home, directory, universities } from "./pages-discover.js";
-import { register, profile, privacy } from "./pages-profile.js";
+import { register, profile, privacy, login, personal } from "./pages-profile.js";
 import { moments, forum } from "./pages-community.js";
 
 const main = document.querySelector("#main");
@@ -77,6 +77,8 @@ export async function render(restore = false) {
     "/moments": "校园映像",
     "/forum": "校友贴吧",
     "/privacy": "隐私与公开说明",
+    "/login": "登录",
+    "/me": "个人中心",
   };
   document.title = `${titles[location.pathname] || "电子校友卡"} · 陕西省榆林中学`;
   const page =
@@ -88,6 +90,8 @@ export async function render(restore = false) {
       "/moments": moments,
       "/forum": forum,
       "/privacy": privacy,
+      "/login": login,
+      "/me": personal,
     }[location.pathname] ||
     (location.pathname.startsWith("/alumni/") ? profile : null);
   try {
@@ -108,6 +112,14 @@ export async function render(restore = false) {
       main.innerHTML = `<div class="wrap">${errorState(error)}</div>`;
   }
 }
+function updateAccountLink() {
+ const link = document.querySelector("#account-link");
+ link.href = session() ? "/me" : "/login";
+ link.textContent = session() ? "个人中心" : "登录";
+}
+window.addEventListener("auth-change", updateAccountLink);
+window.addEventListener("storage", updateAccountLink);
+updateAccountLink();
 api("/meta")
   .then((meta) => {
     if (meta.demo)

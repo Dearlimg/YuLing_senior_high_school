@@ -1,3 +1,16 @@
+const sessionKey = "yulin-session";
+export function session() {
+  try {
+    const value = JSON.parse(localStorage.getItem(sessionKey) || "null");
+    if (value?.token && Date.parse(value.expires_at) > Date.now()) return value;
+  } catch {}
+  return null;
+}
+export function saveSession(value) {
+  if (value) localStorage.setItem(sessionKey, JSON.stringify({token: value.token, expires_at: value.expires_at}));
+  else localStorage.removeItem(sessionKey);
+  window.dispatchEvent(new Event("auth-change"));
+}
 export class APIError extends Error {
   constructor(message, status) {
     super(message);
@@ -17,6 +30,8 @@ export async function api(path, options = {}) {
   const timeout = setTimeout(() => controller.abort(), 20000);
   try {
     const headers = new Headers(options.headers || {});
+    const token = session()?.token;
+    if (token) headers.set("Authorization", `Bearer ${token}`);
     if (options.body && !(options.body instanceof FormData))
       headers.set("Content-Type", "application/json");
     const response = await fetch(`/api/v1${path}`, {
@@ -25,6 +40,7 @@ export async function api(path, options = {}) {
       signal: options.signal || controller.signal,
     });
     const body = await response.json().catch(() => ({}));
+    if (response.status === 401 && session()?.token === token) saveSession(null);
     if (!response.ok || body.code !== 0)
       throw new APIError(
         body.msg || "服务暂时不可用，请稍后重试",

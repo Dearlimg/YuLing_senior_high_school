@@ -5,10 +5,10 @@ import "time"
 
 // Alumni stores both graduates and current students; dream schools are kept separate.
 type Alumni struct {
-	ID              uint64 `gorm:"primaryKey;index:idx_feed,priority:3"`
-	Name            string `gorm:"type:varchar(64);not null;index:idx_name"`
-	Gender          int8
-	Identity        string `gorm:"type:varchar(16);not null;default:alumni"`
+	ID       uint64 `gorm:"primaryKey;index:idx_feed,priority:3"`
+	Name     string `gorm:"type:varchar(64);not null;index:idx_name"`
+	Gender   int8
+	Identity string `gorm:"type:varchar(16);not null;default:alumni"`
 	// idx_feed 是列表页的覆盖索引：(deleted_at, graduation_year, id)。
 	// 列表查询固定是 WHERE deleted_at IS NULL ORDER BY graduation_year DESC, id DESC，
 	// 三列顺序必须和这个模式对齐，否则优化器会退回全表扫描 + filesort。
@@ -37,7 +37,7 @@ type Alumni struct {
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	// idx_feed 的第一列。软删除条件几乎是所有查询的前缀，放最左。
-	DeletedAt       *time.Time `gorm:"index:idx_deleted_at;index:idx_feed,priority:1"`
+	DeletedAt *time.Time `gorm:"index:idx_deleted_at;index:idx_feed,priority:1"`
 }
 
 func (Alumni) TableName() string { return "alumni" }

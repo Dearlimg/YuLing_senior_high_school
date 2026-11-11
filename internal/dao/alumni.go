@@ -66,7 +66,7 @@ func (s *SQLStore) CreateAlumni(ctx context.Context, row *model.Alumni) error {
 
 func (s *SQLStore) UpdateAlumni(ctx context.Context, row *model.Alumni) error {
 	// Explicit fields save false/empty values while protecting management columns.
-	tx := s.db.WithContext(ctx).Model(row).Where("status = ? AND deleted_at IS NULL", "active").
+	tx := s.db.WithContext(ctx).Model(row).Where("status = ? AND deleted_at IS NULL AND edit_code_hash = ?", "active", row.EditCodeHash).
 		Select("Name", "Identity", "GraduationYear", "ClassName", "City", "University", "DreamUniversity",
 			"Major", "Education", "Company", "Position", "Phone", "Wechat", "Email", "Message",
 			"AvatarColor", "ContactPublic", "UpdatedAt").Updates(row)

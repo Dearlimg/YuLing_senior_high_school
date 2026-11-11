@@ -300,3 +300,16 @@ kubectl get deploy yulin-server -n apps -o jsonpath='{.spec.template.spec.contai
 | Redis 共享口令 | `yulin-secret` 中存的是实例级密码 | 共享实例无法做到每应用独立口令；要真正隔离需独立 Redis 实例或 Redis ACL |
 | 单副本 | `replicas: 1` | 骨架阶段优先可观测；水平扩展需先解决会话状态与迁移锁 |
 | 无 CI | 手动 build + import | 下一步接 Gitea Actions，runner 已在 `infra/runner-0` 就绪 |
+
+## 账号与个人中心
+
+领取校友卡时填写账号（4～32 位字母、数字或下划线）和密码（8～72 字节），注册后自动登录。
+`/login` 登录，`/me` 维护自己的校友卡；旧卡可在登录页用编号和编辑码绑定账号，绑定后编辑码失效。
+账号密码仅保存 bcrypt 哈希；不透明随机 Bearer Token 有效期 7 天，Redis 的 `session:<SHA256>` 记录用户 ID 和 TTL。
+浏览器 localStorage 仅保存 Token 与到期时间，退出登录会清除浏览器和 Redis 会话。
+发帖、回复、上传和撤下自己的照片共用会话鉴权；署名从校友卡获取，忽略客户端伪造的身份。
+Redis 会话服务故障时拒绝受保护操作。公开浏览仍无需登录，登录不代表学校核验身份。
+
+新增接口：`POST /api/v1/auth/register`、`POST /api/v1/auth/login`、`POST /api/v1/auth/logout`、
+`GET /api/v1/me`、`PUT /api/v1/me/alumni`。`POST /api/v1/alumni` 兼容注册入口，现同样需要账号密码。
+上线前执行 `go run ./cmd/migrate` 创建 `app_user` 并给内容表增加 `user_id`，历史资料不自动归属任何账号。

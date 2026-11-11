@@ -63,6 +63,10 @@ type ModerationItem struct {
 
 // Store keeps persistence details out of the business layer.
 type Store interface {
+	FindUser(context.Context, string) (*model.User, error)
+	FindUserByID(context.Context, uint64) (*model.User, error)
+	FindUserByAlumni(context.Context, uint64) (*model.User, error)
+	RegisterUser(context.Context, *model.User, *model.Alumni) error
 	ListAlumni(context.Context, ListQuery) ([]model.Alumni, int64, error)
 	FindAlumni(context.Context, uint64) (*model.Alumni, error)
 	CreateAlumni(context.Context, *model.Alumni) error

@@ -66,7 +66,11 @@ func (l *CommunityLogic) Photos(ctx context.Context, req ContentRequest) (*Photo
 }
 
 func (l *CommunityLogic) Upload(ctx context.Context, req PhotoRequest) (*PhotoCreated, error) {
-	caption, uploader := strings.TrimSpace(req.Caption), strings.TrimSpace(req.Uploader)
+	actor, err := CurrentActor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	caption, uploader := strings.TrimSpace(req.Caption), actor.Card.Name
 	if err := validateText("照片说明", caption, 80, true); err != nil {
 		return nil, err
 	}
@@ -85,9 +89,9 @@ func (l *CommunityLogic) Upload(ctx context.Context, req PhotoRequest) (*PhotoCr
 		return nil, err
 	}
 	row := &model.Photo{
-		Caption: caption, Uploader: uploader, Category: req.Category,
+		UserID: actor.UserID, Caption: caption, Uploader: uploader, Category: req.Category,
 		Image: compressed, MIME: "image/jpeg", DeleteCodeHash: hash,
-		CreateKey: createKey(req.Key, req), Status: "active",
+		CreateKey: actorCreateKey(actor.UserID, req.Key, req), Status: "active",
 	}
 	if err := l.store.CreatePhoto(ctx, row); err != nil {
 		return nil, businessError(err)
@@ -108,7 +112,11 @@ func (l *CommunityLogic) DeletePhoto(ctx context.Context, id uint64, code string
 	if err != nil {
 		return businessError(err)
 	}
-	if !matchesSecret(code, row.DeleteCodeHash) {
+	actor, err := CurrentActor(ctx)
+	if err != nil {
+		return err
+	}
+	if (row.UserID != 0 && row.UserID != actor.UserID) || (row.UserID == 0 && !matchesSecret(code, row.DeleteCodeHash)) {
 		return ErrForbidden
 	}
 	return businessError(l.store.DeletePhoto(ctx, id))
@@ -158,8 +166,12 @@ func (l *CommunityLogic) Posts(ctx context.Context, req ContentRequest) (*PostRe
 }
 
 func (l *CommunityLogic) CreatePost(ctx context.Context, req PostRequest) (uint64, error) {
-	nickname, content := strings.TrimSpace(req.Nickname), strings.TrimSpace(req.Content)
-	if err := validateText("昵称", nickname, 20, true); err != nil {
+	actor, err := CurrentActor(ctx)
+	if err != nil {
+		return 0, err
+	}
+	nickname, content := actor.Card.Name, strings.TrimSpace(req.Content)
+	if err := validateText("昵称", nickname, 30, true); err != nil {
 		return 0, err
 	}
 	if err := validateText("正文", content, 500, true); err != nil {
@@ -177,9 +189,9 @@ func (l *CommunityLogic) CreatePost(ctx context.Context, req PostRequest) (uint6
 		mime = "image/jpeg"
 	}
 	row := &model.Post{
-		Nickname: nickname, GraduationYear: req.GraduationYear, Content: content,
-		Image: compressed, MIME: mime, AvatarColor: "red", Status: "active",
-		CreateKey: createKey(req.Key, req),
+		UserID: actor.UserID, Nickname: nickname, GraduationYear: actor.Card.GraduationYear, Content: content,
+		Image: compressed, MIME: mime, AvatarColor: actor.Card.AvatarColor, Status: "active",
+		CreateKey: actorCreateKey(actor.UserID, req.Key, req),
 	}
 	if err := l.store.CreatePost(ctx, row); err != nil {
 		return 0, businessError(err)
@@ -231,14 +243,18 @@ func (l *CommunityLogic) Replies(ctx context.Context, id uint64, req ContentRequ
 }
 
 func (l *CommunityLogic) Reply(ctx context.Context, id uint64, req ReplyRequest, key string) (int64, error) {
-	nickname, content := strings.TrimSpace(req.Nickname), strings.TrimSpace(req.Content)
-	if err := validateText("昵称", nickname, 20, true); err != nil {
+	actor, err := CurrentActor(ctx)
+	if err != nil {
+		return 0, err
+	}
+	nickname, content := actor.Card.Name, strings.TrimSpace(req.Content)
+	if err := validateText("昵称", nickname, 30, true); err != nil {
 		return 0, err
 	}
 	if err := validateText("回复", content, 500, true); err != nil {
 		return 0, err
 	}
-	row := &model.Reply{PostID: id, Nickname: nickname, Content: content, Status: "active", CreateKey: createKey(key, struct {
+	row := &model.Reply{UserID: actor.UserID, PostID: id, Nickname: nickname, Content: content, Status: "active", CreateKey: actorCreateKey(actor.UserID, key, struct {
 		PostID uint64
 		ReplyRequest
 	}{PostID: id, ReplyRequest: req})}

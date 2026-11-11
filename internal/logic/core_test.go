@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"YuLing_senior_high_school/internal/dao"
+	"YuLing_senior_high_school/internal/model"
 )
 
 func TestRegistrationPrivacyEditingAndUniversityConsistency(t *testing.T) {
@@ -146,7 +147,7 @@ func testPNG(t *testing.T) []byte {
 }
 
 func TestPhotoCodesAndModerationHideImages(t *testing.T) {
-	ctx := context.Background()
+	ctx := testActorContext()
 	store := dao.NewMemoryStore()
 	service := NewCommunityLogic(store)
 	created, err := service.Upload(ctx, PhotoRequest{Caption: "校园", Uploader: "校友", Category: "校园风景", Image: testPNG(t), Key: "photo"})
@@ -161,7 +162,7 @@ func TestPhotoCodesAndModerationHideImages(t *testing.T) {
 	if row.DeleteCodeHash == created.DeleteCode {
 		t.Fatal("raw delete code stored")
 	}
-	if err := service.DeletePhoto(ctx, created.ID, "wrong"); !errors.Is(err, ErrForbidden) {
+	if err := service.DeletePhoto(WithActor(ctx, &Actor{UserID: 2}), created.ID, "wrong"); !errors.Is(err, ErrForbidden) {
 		t.Fatal("wrong delete code accepted")
 	}
 	if err := service.Moderate(ctx, "photo", created.ID, ModerationRequest{Action: "hidden", Reason: "test"}); err != nil {
@@ -189,7 +190,7 @@ func TestPhotoCodesAndModerationHideImages(t *testing.T) {
 }
 
 func TestPostsRepliesAndParentModeration(t *testing.T) {
-	ctx := context.Background()
+	ctx := testActorContext()
 	store := dao.NewMemoryStore()
 	service := NewCommunityLogic(store)
 	id, err := service.CreatePost(ctx, PostRequest{Nickname: "校友", Content: "你好", Key: "post"})
@@ -230,4 +231,8 @@ func TestImageValidation(t *testing.T) {
 			t.Fatal("invalid image accepted")
 		}
 	}
+}
+
+func testActorContext() context.Context {
+	return WithActor(context.Background(), &Actor{UserID: 1, Card: model.Alumni{ID: 1, Name: "测试校友", GraduationYear: 2018, AvatarColor: "blue"}})
 }
