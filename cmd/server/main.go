@@ -15,6 +15,12 @@ import (
 	"syscall"
 	"time"
 
+	// 把 IANA 时区数据库编进二进制（约 450KB）。
+	// 这样容器里即使没装 tzdata，TZ=Asia/Shanghai 也能正确生效；
+	// 否则 Go 读不到 /usr/share/zoneinfo 会静默退回 UTC，日志时间整体偏移 8 小时，
+	// 而且这种错误在日志里看不出来，只能靠对上真实时间才发现。
+	_ "time/tzdata"
+
 	"YuLing_senior_high_school/internal/conf"
 	"YuLing_senior_high_school/internal/controller"
 	"YuLing_senior_high_school/internal/dao"

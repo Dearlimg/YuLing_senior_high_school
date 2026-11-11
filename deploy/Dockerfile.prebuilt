@@ -1,0 +1,40 @@
+# 离线构建用的 Dockerfile —— 配合预编译二进制，零网络依赖。
+#
+# 为什么需要它：本集群的 NAT VPS 出站 DNS 被污染（docker.io 解析到无效 IP），
+# 拉不到 golang:1.26-alpine，标准多阶段构建在这个环境里跑不通。
+# 而 alpine:3.20 与宿主机的 ca 证书都已在本地，可以完全离线产出镜像。
+#
+# 与 Dockerfile 的关系：
+#   Dockerfile          = 有外网时的标准做法（构建与运行分离，可复现）
+#   Dockerfile.prebuilt = 无外网时的等效替代（二进制由 CI 或本地交叉编译产出）
+# 两者产出的运行镜像内容一致，只是"编译发生在哪里"不同。
+#
+# 使用前提：构建上下文里已经有
+#   bin/server               —— CGO_ENABLED=0 的 linux/amd64 静态二进制
+#   build/ca-certificates.crt —— 从宿主机 /etc/ssl/certs/ca-certificates.crt 拷入
+#
+# 注意：不需要安装 tzdata。二进子里已通过 time/tzdata 嵌入时区库，
+# 这比在镜像里 apk add tzdata 更可靠（apk 同样要联网）。
+
+FROM alpine:3.20
+
+# 只拷 CA 证书，不 apk add：apk 源在这个网络环境下同样不可达
+COPY build/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+
+COPY bin/server /usr/local/bin/server
+
+# 必须显式 chmod：二进制是从 Windows 交叉编译后传过来的，源文件没有执行位，
+# COPY 会原样保留 0644，容器启动时报
+# "exec: /usr/local/bin/server: permission denied"。
+# 多阶段 Dockerfile 里 go build 直接产出 0755，所以那边不需要这一步。
+RUN chmod 0755 /usr/local/bin/server
+
+ENV TZ=Asia/Shanghai
+
+# 与 Deployment 的 runAsUser 对齐。alpine 默认没有 uid 10001 的条目，
+# 但 Linux 内核只需要数字 uid 就能运行，K8s 的 runAsNonRoot 也接受数字。
+USER 10001:10001
+
+EXPOSE 8080
+
+ENTRYPOINT ["/usr/local/bin/server"]
