@@ -100,7 +100,9 @@ echo "上一版本镜像: $PREV_IMAGE"
 
 k3s kubectl set image "deploy/$APP" "server=$TAG" -n "$NAMESPACE" > /dev/null
 
-if ! k3s kubectl rollout status "deploy/$APP" -n "$NAMESPACE" --timeout=180s; then
+# 300s 而不是 180s：首次拉 pause 镜像失败时 kubelet 会退避重试，
+# 单是 sandbox 创建就可能耗掉 90s，180s 余量不够，会把正常发布判成超时。
+if ! k3s kubectl rollout status "deploy/$APP" -n "$NAMESPACE" --timeout=300s; then
   fail "滚动发布超时，自动回滚到上一版本"
   k3s kubectl rollout undo "deploy/$APP" -n "$NAMESPACE" || true
   k3s kubectl logs -n "$NAMESPACE" -l "app=$APP" --tail=60 || true
@@ -109,19 +111,49 @@ fi
 ok "Pod 已就绪"
 k3s kubectl get pod -n "$NAMESPACE" -l "app=$APP" -o wide
 
-# 公网验证：/ready 会真的 ping MySQL 和 Redis，
-# 比只看 /health 更能证明这一版是"能干活"而不只是"进程起来了"。
-step "公网验证"
-HEALTH=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$PUBLIC/health" || echo 000)
-READY=$(curl -s --max-time 10 "$PUBLIC/ready" || echo '{}')
-echo "health HTTP=$HEALTH"
-echo "ready=$READY"
+# 公网验证分两级，这个划分是 2026-11-11 第一次流水线失败后改的：
+#
+#   内网（NodePort 回环）检验的是"这次发布的应用能不能干活"——不通过必须回滚。
+#   公网（nginx + SSH 隧道）检验的是"整条入口链路通不通"——链路抖动与代码无关，
+#   回滚到旧版本一样不通，所以只告警不回滚。
+#
+# 另一个坑：curl 用 -w 取状态码时，连接失败本身就输出 000。
+# 之前写成 `... -w '%{http_code}' ... || echo 000`，两个 000 被拼成 "000000"，
+# 判定必然失败，于是一次网络抖动就能让好好的发布被回滚掉。
+check_http() {  # $1=url $2=期望状态码 $3=重试次数
+  local url=$1 want=$2 tries=${3:-5} code='' i
+  for ((i = 1; i <= tries; i++)); do
+    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$url" 2>/dev/null) || true
+    [ -z "$code" ] && code=000
+    if [ "$code" = "$want" ]; then
+      echo "$code"
+      return 0
+    fi
+    echo "  第 $i/$tries 次 HTTP=$code" >&2
+    if [ "$i" -lt "$tries" ]; then sleep 3; fi
+  done
+  echo "$code"
+  return 1
+}
 
-if [ "$HEALTH" != "200" ] || ! echo "$READY" | grep -q '"mysql":"up"'; then
-  fail "公网验证未通过，自动回滚"
+step "内网验证（NodePort 30443 回环）"
+if ! INTERNAL=$(check_http "http://127.0.0.1:30443/ready" 200 5); then
+  fail "内网就绪检查失败（HTTP=$INTERNAL），回滚到上一版本"
+  k3s kubectl logs -n "$NAMESPACE" -l "app=$APP" --tail=60 || true
   k3s kubectl rollout undo "deploy/$APP" -n "$NAMESPACE" || true
   exit 1
 fi
+ok "内网 /ready 正常（HTTP=$INTERNAL）"
+
+step "公网验证（$PUBLIC）"
+if PUBLIC_CODE=$(check_http "$PUBLIC/health" 200 5); then
+  ok "公网 /health 正常（HTTP=$PUBLIC_CODE）"
+else
+  fail "公网链路异常（HTTP=$PUBLIC_CODE），但应用本身已就绪"
+  echo "  这类问题回滚无效，保留本次部署。请检查入口链路："
+  echo "    ssh aliyun 'systemctl status nginx; ss -lntp | grep 18043'"
+  echo "    curl -s http://127.0.0.1:30443/ready   # 在部署机本地验"
+fi
 
 echo
-echo "DEPLOY_OK commit=$SHA image=$TAG http=$HEALTH"
+echo "DEPLOY_OK commit=$SHA image=$TAG internal=$INTERNAL"
