@@ -3,6 +3,7 @@ package logic
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"image/jpeg"
@@ -310,9 +311,18 @@ func (l *CommunityLogic) Inspect(ctx context.Context, kind string, id uint64) (*
 	return item, businessError(err)
 }
 
+var ErrImageTooLarge = errors.New("图片文件过大")
+
+const (
+	MaxUploadImageBytes = 2 << 20
+	MaxStoredImageBytes = 512 << 10
+	MaxImageDimension   = 2048
+	MaxImagePixels      = 16000000
+)
+
 var imageSlots = make(chan struct{}, 2)
 
-// Decode actual bytes, cap decoded dimensions, resize and re-encode to strip metadata/scripts.
+// Validate encoded bytes and dimensions before decoding; re-encode to strip metadata.
 func processImage(data []byte, required bool) ([]byte, error) {
 	if len(data) == 0 {
 		if required {
@@ -320,15 +330,15 @@ func processImage(data []byte, required bool) ([]byte, error) {
 		}
 		return nil, nil
 	}
-	if len(data) > 10<<20 {
-		return nil, invalid("图片不能超过 10MB")
+	if len(data) > MaxUploadImageBytes {
+		return nil, imageTooLarge()
 	}
 	config, format, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil || (format != "jpeg" && format != "png") {
 		return nil, invalid("图片内容必须为有效的 JPG 或 PNG")
 	}
-	if config.Width <= 0 || config.Height <= 0 || int64(config.Width)*int64(config.Height) > 16000000 {
-		return nil, invalid("图片像素过高，请压缩后重试（最多1600万像素）")
+	if config.Width <= 0 || config.Height <= 0 || int64(config.Width)*int64(config.Height) > MaxImagePixels {
+		return nil, invalid("图片最多 1600 万像素，请先使用一键瘦身")
 	}
 	select {
 	case imageSlots <- struct{}{}:
@@ -341,20 +351,37 @@ func processImage(data []byte, required bool) ([]byte, error) {
 		return nil, invalid("图片内容损坏，无法读取")
 	}
 	w, h := config.Width, config.Height
-	if max(w, h) > 2048 {
+	if max(w, h) > MaxImageDimension {
 		if w >= h {
-			h = max(1, h*2048/w)
-			w = 2048
+			h = max(1, h*MaxImageDimension/w)
+			w = MaxImageDimension
 		} else {
-			w = max(1, w*2048/h)
-			h = 2048
+			w = max(1, w*MaxImageDimension/h)
+			h = MaxImageDimension
 		}
 	}
+	for range 8 {
+		target := resizeImage(source, w, h)
+		for _, quality := range []int{85, 72, 60, 48} {
+			var output bytes.Buffer
+			if err := jpeg.Encode(&output, target, &jpeg.Options{Quality: quality}); err != nil {
+				return nil, invalid("图片压缩失败")
+			}
+			if output.Len() <= MaxStoredImageBytes {
+				return output.Bytes(), nil
+			}
+		}
+		w, h = max(1, w*3/4), max(1, h*3/4)
+	}
+	return nil, invalid("图片无法压缩到 512KB，请选择其他图片")
+}
+
+func resizeImage(source image.Image, w, h int) *image.RGBA {
 	target := image.NewRGBA(image.Rect(0, 0, w, h))
 	bounds := source.Bounds()
 	for y := range h {
 		for x := range w {
-			r, g, b, a := source.At(bounds.Min.X+x*config.Width/w, bounds.Min.Y+y*config.Height/h).RGBA()
+			r, g, b, a := source.At(bounds.Min.X+x*bounds.Dx()/w, bounds.Min.Y+y*bounds.Dy()/h).RGBA()
 			index := target.PixOffset(x, y)
 			target.Pix[index] = uint8((r + 0xffff - a) >> 8)
 			target.Pix[index+1] = uint8((g + 0xffff - a) >> 8)
@@ -362,12 +389,8 @@ func processImage(data []byte, required bool) ([]byte, error) {
 			target.Pix[index+3] = 255
 		}
 	}
-	var output bytes.Buffer
-	if err := jpeg.Encode(&output, target, &jpeg.Options{Quality: 85}); err != nil {
-		return nil, invalid("图片压缩失败")
-	}
-	if output.Len() > 3<<20 {
-		return nil, invalid("压缩后图片不能超过 3MB")
-	}
-	return output.Bytes(), nil
+	return target
+}
+func imageTooLarge() error {
+	return fmt.Errorf("%w: 上传图片不能超过 2MB，请先使用一键瘦身（入库最多 512KB）", ErrImageTooLarge)
 }

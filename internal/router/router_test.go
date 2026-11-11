@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -30,6 +31,42 @@ func testEngine() *gin.Engine {
 		Limiter:   store,
 		Auth:      controller.NewAuthController(auth), AuthLogic: auth,
 	})
+}
+
+func TestOversizedUploadCannotBypassBrowserLimit(t *testing.T) {
+	router := testEngine()
+	registered := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", strings.NewReader(`{"account":"image_user","password":"password123","name":"图片校友","graduation_year":2018}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(registered, req)
+	var result struct {
+		Data logic.AuthResult `json:"data"`
+	}
+	if err := json.Unmarshal(registered.Body.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	for _, size := range []int{logic.MaxUploadImageBytes + 1, logic.MaxUploadImageBytes + (256 << 10)} {
+		var body bytes.Buffer
+		form := multipart.NewWriter(&body)
+		file, err := form.CreateFormFile("image", "large.jpg")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := file.Write(make([]byte, size)); err != nil {
+			t.Fatal(err)
+		}
+		if err := form.Close(); err != nil {
+			t.Fatal(err)
+		}
+		upload := httptest.NewRequest(http.MethodPost, "/api/v1/photos", &body)
+		upload.Header.Set("Content-Type", form.FormDataContentType())
+		upload.Header.Set("Authorization", "Bearer "+result.Data.Token)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, upload)
+		if response.Code != 413 || !strings.Contains(response.Body.String(), "瘦身") {
+			t.Fatalf("oversized upload: %d %s", response.Code, response.Body.String())
+		}
+	}
 }
 
 func TestEmbeddedPagesAndAPIBoundary(t *testing.T) {

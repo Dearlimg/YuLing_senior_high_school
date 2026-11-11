@@ -106,6 +106,8 @@ func respond(c *gin.Context, data any, err error) {
 	switch {
 	case err == nil:
 		resp.OK(c, data)
+	case errors.Is(err, logic.ErrImageTooLarge):
+		resp.Fail(c, http.StatusRequestEntityTooLarge, 41301, err.Error())
 	case errors.Is(err, logic.ErrInvalidParam):
 		resp.BadRequest(c, err.Error())
 	case errors.Is(err, logic.ErrNotFound):

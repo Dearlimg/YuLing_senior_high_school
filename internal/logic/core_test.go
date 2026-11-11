@@ -227,7 +227,7 @@ func TestPostsRepliesAndParentModeration(t *testing.T) {
 
 func TestImageValidation(t *testing.T) {
 	for _, data := range [][]byte{[]byte("<script>alert(1)</script>"), bytes.Repeat([]byte("x"), (10<<20)+1)} {
-		if _, err := processImage(data, true); !errors.Is(err, ErrInvalidParam) {
+		if _, err := processImage(data, true); !errors.Is(err, ErrInvalidParam) && !errors.Is(err, ErrImageTooLarge) {
 			t.Fatal("invalid image accepted")
 		}
 	}

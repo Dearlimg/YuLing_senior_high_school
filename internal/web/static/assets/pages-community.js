@@ -16,41 +16,78 @@ import {
 } from "./ui.js";
 import { navigate, render } from "./app.js";
 
+const pickedImages = new WeakMap();
+const sizeLabel = bytes => bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(0)}KB` : `${(bytes / 1024 / 1024).toFixed(2)}MB`;
 function imagePicker(required = false) {
-  return `<label class="upload-zone"><input name="image" type="file" accept="image/jpeg,image/png" ${required ? "required" : ""}/><span class="upload-prompt">${icon("upload")}<strong>点这里选一张照片</strong><small>JPG / PNG · 原图不超过 10MB · 自动压缩</small></span><img class="upload-preview" alt="所选照片预览" hidden/><span class="upload-filename"></span></label>`;
+  return `<div class="image-picker"><label class="upload-zone"><input name="image" type="file" accept="image/jpeg,image/png" ${required ? "required" : ""}/><span class="upload-prompt">${icon("upload")}<strong>点这里选一张照片</strong><small>JPG / PNG · 上传最多 2MB · 入库最多 512KB</small></span><img class="upload-preview" alt="所选照片预览" hidden/><span class="upload-filename"></span></label><div class="image-tools" hidden><p class="image-size" role="status"></p><button class="button outline slim-image" type="button">${icon("spark")}一键瘦身</button><a class="text-link slim-download" hidden download>下载瘦身图片</a></div><small class="subtle">瘦身在本机完成，支持 25MB / 4000 万像素以内原图，长边最多 2048 像素。合规图片上传时也会压缩并移除元数据。</small></div>`;
 }
 function bindPicker(form) {
   const input = form.elements.image;
   if (!input) return;
-  let objectURL;
-  input.onchange = () => {
-    const zone = input.closest(".upload-zone");
-    const preview = zone.querySelector("img");
-    const filename = zone.querySelector(".upload-filename");
+  const picker = input.closest(".image-picker");
+  const zone = picker.querySelector(".upload-zone");
+  const preview = picker.querySelector("img");
+  const filename = picker.querySelector(".upload-filename");
+  const tools = picker.querySelector(".image-tools");
+  const size = picker.querySelector(".image-size");
+  const button = picker.querySelector(".slim-image");
+  const download = picker.querySelector(".slim-download");
+  let version = 0, objectURL;
+  const show = file => {
     if (objectURL) URL.revokeObjectURL(objectURL);
-    const file = input.files[0];
-    if (!file) {
-      preview.hidden = true;
-      zone.classList.remove("has-image");
-      filename.textContent = "";
-      return;
-    }
-    if (
-      !["image/jpeg", "image/png"].includes(file.type) ||
-      file.size > 10 * 1024 * 1024
-    ) {
-      input.value = "";
-      preview.hidden = true;
-      zone.classList.remove("has-image");
-      toast("请选择 10MB 以内的 JPG 或 PNG 图片");
-      return;
-    }
     objectURL = URL.createObjectURL(file);
     preview.src = objectURL;
     preview.hidden = false;
     zone.classList.add("has-image");
-    filename.textContent = `${file.name} · 点击可重新选择`;
+    filename.textContent = `${file.name} · ${sizeLabel(file.size)} · 点击可重新选择`;
   };
+  input.onchange = () => {
+    version++;
+    const file = input.files[0];
+    pickedImages.delete(form);
+    tools.hidden = true;
+    download.hidden = true;
+    preview.hidden = true;
+    zone.classList.remove("has-image");
+    filename.textContent = "";
+    button.disabled = false;
+    if (objectURL) { URL.revokeObjectURL(objectURL); objectURL = null; }
+    if (!file) return;
+    if (!["image/jpeg", "image/png"].includes(file.type) || file.size > 25 * 1024 * 1024) {
+      input.value = "";
+      toast("请选择 25MB 以内的 JPG 或 PNG 图片，可先使用其他工具裁剪");
+      return;
+    }
+    show(file);
+    tools.hidden = false;
+    size.textContent = `原图 ${sizeLabel(file.size)}。${file.size > 2 * 1024 * 1024 ? "超过上传限制，请先点击一键瘦身。" : "可直接上传，也可先瘦身预览。"}`;
+  };
+  button.onclick = async () => {
+    const file = input.files[0];
+    if (!file || button.disabled) return;
+    const current = version;
+    button.disabled = true;
+    size.textContent = "正在本机瘦身，请稍候…";
+    try {
+      const slim = await compressImage(file);
+      if (current !== version) return;
+      pickedImages.set(form,slim);
+      form.querySelector(".form-error")?.setAttribute("hidden", "");
+      show(slim);
+      size.textContent = `瘦身完成：${sizeLabel(file.size)} → ${sizeLabel(slim.size)}，减少 ${Math.max(0,Math.round((1-slim.size/file.size)*100))}%，已符合上传规范。`;
+      download.href = objectURL;
+      download.download = slim.name;
+      download.hidden = false;
+    } catch (error) { if (current === version) size.textContent = error.message; }
+    finally { if (current === version) button.disabled = false; }
+  };
+}
+async function selectedImage(form) {
+  const prepared = pickedImages.get(form);
+  if (prepared) return prepared;
+  const file = form.elements.image.files[0];
+  if (file?.size > 2 * 1024 * 1024) throw new Error("图片超过 2MB，请先点击一键瘦身，再提交");
+  return compressImage(file);
 }
 
 export async function moments(url) {
@@ -76,7 +113,7 @@ export async function moments(url) {
           e.preventDefault();
           busy(f, async () => {
             const data = new FormData(f);
-            data.set("image", await compressImage(f.elements.image.files[0]));
+            data.set("image", await selectedImage(f));
             const saved = await api("/photos", {
               method: "POST",
               headers: { "Idempotency-Key": key },
@@ -194,7 +231,7 @@ export async function forum(url) {
           if (form.elements.image.files[0])
             data.set(
               "image",
-              await compressImage(form.elements.image.files[0]),
+              await selectedImage(form),
             );
           else data.delete("image");
           await api("/posts", {

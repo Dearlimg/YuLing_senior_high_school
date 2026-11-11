@@ -1,7 +1,10 @@
 package controller
 
 import (
+	"errors"
+	"fmt"
 	"io"
+	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -26,8 +29,8 @@ func (h *CommunityController) Photos(c *gin.Context) {
 	respond(c, result, err)
 }
 func (h *CommunityController) Upload(c *gin.Context) {
-	if err := c.Request.ParseMultipartForm(12 << 20); err != nil {
-		resp.BadRequest(c, "请使用图片表单上传，原图不能超过10MB")
+	if err := c.Request.ParseMultipartForm(logic.MaxUploadImageBytes + (128 << 10)); err != nil {
+		multipartError(c, err)
 		return
 	}
 	defer c.Request.MultipartForm.RemoveAll()
@@ -76,8 +79,8 @@ func (h *CommunityController) Posts(c *gin.Context) {
 	respond(c, result, err)
 }
 func (h *CommunityController) CreatePost(c *gin.Context) {
-	if err := c.Request.ParseMultipartForm(12 << 20); err != nil {
-		resp.BadRequest(c, "发帖请求格式不正确")
+	if err := c.Request.ParseMultipartForm(logic.MaxUploadImageBytes + (128 << 10)); err != nil {
+		multipartError(c, err)
 		return
 	}
 	defer c.Request.MultipartForm.RemoveAll()
@@ -161,25 +164,25 @@ func (h *CommunityController) AuditLogs(c *gin.Context) {
 func readImage(c *gin.Context, required bool) ([]byte, error) {
 	header, err := c.FormFile("image")
 	if err != nil {
-		if required {
-			return nil, logic.ErrInvalidParam
+		if !required && errors.Is(err, http.ErrMissingFile) {
+			return nil, nil
 		}
-		return nil, nil
+		return nil, fmt.Errorf("%w: 请选择有效图片文件", logic.ErrInvalidParam)
 	}
-	if header.Size > 10<<20 {
-		return nil, logic.ErrInvalidParam
+	if header.Size > logic.MaxUploadImageBytes {
+		return nil, fmt.Errorf("%w: 图片不能超过 2MB，请先使用一键瘦身", logic.ErrImageTooLarge)
 	}
 	file, err := header.Open()
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
-	data, err := io.ReadAll(io.LimitReader(file, (10<<20)+1))
+	data, err := io.ReadAll(io.LimitReader(file, logic.MaxUploadImageBytes+1))
 	if err != nil {
 		return nil, err
 	}
-	if len(data) > 10<<20 {
-		return nil, logic.ErrInvalidParam
+	if len(data) > logic.MaxUploadImageBytes {
+		return nil, fmt.Errorf("%w: 图片不能超过 2MB，请先使用一键瘦身", logic.ErrImageTooLarge)
 	}
 	return data, nil
 }
@@ -204,4 +207,13 @@ func serveImage(c *gin.Context, data []byte, mime string, err error) {
 func (h *CommunityController) Ranking(c *gin.Context) {
 	result, err := h.logic.Ranking(c.Request.Context(), c.DefaultQuery("period", "all"))
 	respond(c, result, err)
+}
+
+func multipartError(c *gin.Context, err error) {
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		resp.Fail(c, 413, 41301, "上传请求过大，图片不能超过 2MB，请先使用一键瘦身")
+		return
+	}
+	resp.BadRequest(c, "请使用有效的图片表单上传")
 }

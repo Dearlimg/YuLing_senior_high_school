@@ -57,30 +57,26 @@ export async function api(path, options = {}) {
   }
 }
 export async function compressImage(file) {
-  if (!file || !["image/jpeg", "image/png"].includes(file.type))
-    throw new Error("请选择 JPG 或 PNG 图片");
-  if (file.size > 10 * 1024 * 1024) throw new Error("原图不能超过 10MB");
-  const bitmap = await createImageBitmap(file).catch(() => {
-    throw new Error("无法读取这张图片，请重新选择");
-  });
+  if (!file || !["image/jpeg", "image/png"].includes(file.type)) throw new Error("请选择 JPG 或 PNG 图片");
+  if (file.size > 25 * 1024 * 1024) throw new Error("瘦身原图不能超过 25MB");
+  const bitmap = await createImageBitmap(file).catch(() => { throw new Error("无法读取这张图片，请重新选择"); });
   try {
-    if (bitmap.width * bitmap.height > 40000000)
-      throw new Error("图片像素过高，请选择较小的照片");
-    const ratio = Math.min(1, 2048 / Math.max(bitmap.width, bitmap.height));
+    if (bitmap.width * bitmap.height > 40000000) throw new Error("瘦身原图最多 4000 万像素，请先裁剪图片");
+    let ratio = Math.min(1, 2048 / Math.max(bitmap.width, bitmap.height));
     const canvas = document.createElement("canvas");
-    canvas.width = Math.round(bitmap.width * ratio);
-    canvas.height = Math.round(bitmap.height * ratio);
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise((resolve) =>
-      canvas.toBlob(resolve, "image/jpeg", 0.84),
-    );
-    if (!blob || blob.size > 3 * 1024 * 1024)
-      throw new Error("压缩失败或图片仍过大，请重新选择");
-    return new File([blob], "campus.jpg", { type: "image/jpeg" });
-  } finally {
-    bitmap.close();
-  }
+    for (let attempt = 0; attempt < 8; attempt++) {
+      canvas.width = Math.max(1, Math.round(bitmap.width * ratio));
+      canvas.height = Math.max(1, Math.round(bitmap.height * ratio));
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      for (const quality of [0.85, 0.72, 0.60, 0.48]) {
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", quality));
+        if (blob && blob.size <= 512 * 1024) return new File([blob], file.name.replace(/\.[^.]+$/, "") + "-slim.jpg", {type:"image/jpeg"});
+      }
+      ratio *= 0.75;
+    }
+    throw new Error("无法压缩到 512KB，请选择其他图片");
+  } finally { bitmap.close(); }
 }
