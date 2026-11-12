@@ -74,3 +74,5 @@ dialog.content-dialog { width: min(1100px, calc(100vw - 48px)); max-width: none;
 .reply-target:not([hidden]) { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .reply-mention { color: var(--wine); font-size: 12px; }
 .reply-to-comment { font-size: 11px; margin-left: 12px; }
+
+.photo-card-info .photo-interactions { justify-content: flex-start; gap: 22px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }

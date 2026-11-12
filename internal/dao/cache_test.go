@@ -40,6 +40,37 @@ func cacheFixture(t *testing.T) (*CachedStore, *countedStore, *miniredis.Minired
 	return NewCachedStore(base, client, "test:"), base, server
 }
 
+func TestCachedPhotoInteractionsAndReplyTargets(t *testing.T) {
+	store, _, _ := cacheFixture(t)
+	ctx := context.Background()
+	photo := &model.Photo{Caption: "校园", Status: "active"}
+	if err := store.CreatePhoto(ctx, photo); err != nil {
+		t.Fatal(err)
+	}
+	query := ContentQuery{Page: 1, PageSize: 20}
+	_, _, _ = store.ListPhotos(ctx, query)
+	_, _, _ = store.ListPhotoReplies(ctx, photo.ID, query)
+	_, err := store.CreateReply(ctx, &model.Reply{PhotoID: photo.ID, Nickname: "甲", Content: "评论", Status: "active"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.CreateReply(ctx, &model.Reply{PhotoID: photo.ID, ParentID: 1, Nickname: "乙", Content: "回复", Status: "active"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.SetLike(ctx, model.ContentLike{Kind: "photo", TargetID: photo.ID, UserID: 1}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		photos, _, _ := store.ListPhotos(ctx, query)
+		rows, total, err := store.ListPhotoReplies(ctx, photo.ID, query)
+		if err != nil || total != 2 || rows[1].ParentNickname != "甲" || photos[0].LikeCount != 1 || photos[0].ReplyCount != 2 {
+			t.Fatalf("stale photo interactions: %+v %+v %v", photos, rows, err)
+		}
+	}
+}
+
 func TestQueryCachePrivacyInvalidationAndFailureFallback(t *testing.T) {
 	store, base, server := cacheFixture(t)
 	ctx := context.Background()

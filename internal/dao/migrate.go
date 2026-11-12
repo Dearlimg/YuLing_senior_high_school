@@ -22,7 +22,7 @@ func (s *SQLStore) CheckSchema(ctx context.Context) error {
 		{entity: &model.Alumni{}, columns: "id, identity, university, dream_university, message, edit_code_hash, status"},
 		{entity: &model.Photo{}, columns: "id, user_id, status, delete_code_hash"},
 		{entity: &model.Post{}, columns: "id, user_id, status"},
-		{entity: &model.Reply{}, columns: "id, user_id, post_id, parent_id, status"},
+		{entity: &model.Reply{}, columns: "id, user_id, post_id, photo_id, parent_id, status"},
 		{entity: &model.ContentLike{}, columns: "id, kind, target_id, user_id"},
 		{entity: &model.AuditLog{}, columns: "id, kind, target_id"},
 	}

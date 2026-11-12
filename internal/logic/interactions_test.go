@@ -68,3 +68,59 @@ func TestRepliesCanTargetAnyVisibleCommentInSamePost(t *testing.T) {
 		t.Fatal("hidden target nickname leaked")
 	}
 }
+
+func TestPhotoInteractionsAreScopedAndHiddenWithPhoto(t *testing.T) {
+	ctx := testActorContext()
+	l := NewCommunityLogic(dao.NewMemoryStore())
+	photo, err := l.Upload(ctx, PhotoRequest{Caption: "校园", Category: "校园风景", Image: testPNG(t)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, _ := l.Upload(ctx, PhotoRequest{Caption: "旧时光", Category: "老照片", Image: testPNG(t)})
+	post, _ := l.CreatePost(ctx, PostRequest{Content: "近况"})
+	_, _ = l.Reply(ctx, post, ReplyRequest{Content: "帖子评论"}, "post-reply")
+	_, err = l.PhotoReply(ctx, photo.ID, ReplyRequest{Content: "照片评论"}, "photo-reply")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = l.PhotoReply(ctx, photo.ID, ReplyRequest{Content: "回复照片评论", ParentID: 2}, "photo-child")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, target := range []struct{ id, parent uint64 }{{photo.ID, 1}, {other.ID, 2}} {
+		if _, err := l.PhotoReply(ctx, target.id, ReplyRequest{Content: "非法回复", ParentID: target.parent}, "cross"); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("cross-target photo reply: %v", err)
+		}
+	}
+	liked := true
+	for range 2 {
+		state, err := l.PhotoLikes(ctx, photo.ID, &liked)
+		if err != nil || state.Count != 1 {
+			t.Fatalf("photo like: %+v %v", state, err)
+		}
+	}
+	postState, _ := l.PostLikes(ctx, post, nil)
+	if postState.Count != 0 {
+		t.Fatal("photo and post likes share a target")
+	}
+	detail, err := l.Photo(ctx, photo.ID)
+	if err != nil || detail.ReplyCount != 2 || detail.LikeCount != 1 {
+		t.Fatalf("photo detail: %+v %v", detail, err)
+	}
+	rows, _ := l.PhotoReplies(ctx, photo.ID, ContentRequest{})
+	if rows.Total != 2 || rows.Items[1].ParentID != 2 {
+		t.Fatalf("photo replies: %+v", rows)
+	}
+	if err := l.DeletePhoto(ctx, photo.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.Photo(ctx, photo.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("deleted photo detail: %v", err)
+	}
+	if _, err := l.PhotoReplies(ctx, photo.ID, ContentRequest{}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("deleted photo replies: %v", err)
+	}
+	if _, err := l.PhotoLikes(ctx, photo.ID, &liked); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("deleted photo like: %v", err)
+	}
+}

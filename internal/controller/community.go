@@ -121,7 +121,9 @@ func (h *CommunityController) PostImage(c *gin.Context) {
 	data, mime, err := h.logic.PostImage(c.Request.Context(), id)
 	serveImage(c, data, mime, err)
 }
-func (h *CommunityController) Replies(c *gin.Context) {
+func (h *CommunityController) Replies(c *gin.Context) { h.contentReplies(c, "post") }
+
+func (h *CommunityController) contentReplies(c *gin.Context, kind string) {
 	id, ok := requestID(c)
 	if !ok {
 		return
@@ -131,10 +133,16 @@ func (h *CommunityController) Replies(c *gin.Context) {
 		resp.BadRequest(c, "查询参数不正确")
 		return
 	}
-	result, err := h.logic.Replies(c.Request.Context(), id, req)
+	replies := h.logic.Replies
+	if kind == "photo" {
+		replies = h.logic.PhotoReplies
+	}
+	result, err := replies(c.Request.Context(), id, req)
 	respond(c, result, err)
 }
-func (h *CommunityController) Reply(c *gin.Context) {
+func (h *CommunityController) Reply(c *gin.Context) { h.contentReply(c, "post") }
+
+func (h *CommunityController) contentReply(c *gin.Context, kind string) {
 	id, ok := requestID(c)
 	if !ok {
 		return
@@ -144,9 +152,13 @@ func (h *CommunityController) Reply(c *gin.Context) {
 		resp.BadRequest(c, "回复格式不正确")
 		return
 	}
-	count, err := h.logic.Reply(c.Request.Context(), id, req, c.GetHeader("Idempotency-Key"))
+	reply := h.logic.Reply
+	if kind == "photo" {
+		reply = h.logic.PhotoReply
+	}
+	count, err := reply(c.Request.Context(), id, req, c.GetHeader("Idempotency-Key"))
 	if err == nil {
-		auditOperation(c, "post.reply", id, 0)
+		auditOperation(c, kind+".reply", id, 0)
 	}
 	respond(c, gin.H{"reply_count": count}, err)
 }

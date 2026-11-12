@@ -233,6 +233,8 @@ func (s *MemoryStore) ListPhotos(_ context.Context, q ContentQuery) ([]model.Pho
 		if r.Status == "active" && (q.Category == "" || r.Category == q.Category) {
 			r.Image = nil
 			r.DeleteCodeHash = ""
+			r.LikeCount = s.likesFor(model.ContentLike{Kind: "photo", TargetID: r.ID}).Count
+			r.ReplyCount = s.photoReplyCount(r.ID)
 			rows = append(rows, r)
 		}
 	}
@@ -340,36 +342,45 @@ func (s *MemoryStore) CreatePost(_ context.Context, row *model.Post) error {
 	return nil
 }
 
-func (s *MemoryStore) ListReplies(_ context.Context, id uint64, q ContentQuery) ([]model.Reply, int64, error) {
+func (s *MemoryStore) ListReplies(ctx context.Context, id uint64, q ContentQuery) ([]model.Reply, int64, error) {
+	return s.listContentReplies(ctx, "post", id, q)
+}
+func (s *MemoryStore) ListPhotoReplies(ctx context.Context, id uint64, q ContentQuery) ([]model.Reply, int64, error) {
+	return s.listContentReplies(ctx, "photo", id, q)
+}
+func (s *MemoryStore) listContentReplies(_ context.Context, kind string, id uint64, q ContentQuery) ([]model.Reply, int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	post, ok := s.posts[id]
-	if !ok || post.Status != "active" {
+	if !s.contentActive(kind, id) {
 		return nil, 0, ErrNotFound
 	}
 	rows := []model.Reply{}
 	for _, r := range s.replies {
-		if r.PostID == id && r.Status == "active" {
-			if target, ok := s.replies[r.ParentID]; ok && target.Status == "active" {
-				r.ParentNickname = target.Nickname
-			}
-			rows = append(rows, r)
+		matches := kind == "post" && r.PostID == id || kind == "photo" && r.PhotoID == id
+		if !matches || r.Status != "active" {
+			continue
 		}
+		if target, ok := s.replies[r.ParentID]; ok && target.Status == "active" {
+			r.ParentNickname = target.Nickname
+		}
+		rows = append(rows, r)
 	}
 	slices.SortFunc(rows, func(a, b model.Reply) int { return compareID(a.ID, b.ID) })
 	return pageSlice(rows, q.Page, q.PageSize), int64(len(rows)), nil
 }
-
 func (s *MemoryStore) CreateReply(_ context.Context, row *model.Reply) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	parent, ok := s.posts[row.PostID]
-	if !ok || parent.Status != "active" {
+	kind, id := "post", row.PostID
+	if row.PhotoID != 0 {
+		kind, id = "photo", row.PhotoID
+	}
+	if !s.contentActive(kind, id) || (row.PostID != 0 && row.PhotoID != 0) {
 		return 0, ErrNotFound
 	}
 	if row.ParentID != 0 {
 		target, ok := s.replies[row.ParentID]
-		if !ok || target.Status != "active" || target.PostID != row.PostID {
+		if !ok || target.Status != "active" || target.PostID != row.PostID || target.PhotoID != row.PhotoID {
 			return 0, ErrNotFound
 		}
 	}
@@ -380,7 +391,19 @@ func (s *MemoryStore) CreateReply(_ context.Context, row *model.Reply) (int64, e
 	row.CreatedAt = time.Now()
 	row.UpdatedAt = row.CreatedAt
 	s.replies[row.ID] = *row
-	return s.replyCount(row.PostID), nil
+	if kind == "photo" {
+		return s.photoReplyCount(id), nil
+	}
+	return s.replyCount(id), nil
+}
+func (s *MemoryStore) photoReplyCount(id uint64) int64 {
+	var count int64
+	for _, r := range s.replies {
+		if r.PhotoID == id && r.Status == "active" {
+			count++
+		}
+	}
+	return count
 }
 
 func (s *MemoryStore) Moderate(_ context.Context, audit model.AuditLog) error {

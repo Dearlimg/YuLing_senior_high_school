@@ -28,12 +28,14 @@ type ContentRequest struct {
 }
 
 type PhotoVO struct {
-	ID        uint64    `json:"id"`
-	Caption   string    `json:"caption"`
-	Uploader  string    `json:"uploader"`
-	Category  string    `json:"category"`
-	ImageURL  string    `json:"image_url"`
-	CreatedAt time.Time `json:"created_at"`
+	LikeCount  int64     `json:"like_count"`
+	ReplyCount int64     `json:"reply_count"`
+	ID         uint64    `json:"id"`
+	Caption    string    `json:"caption"`
+	Uploader   string    `json:"uploader"`
+	Category   string    `json:"category"`
+	ImageURL   string    `json:"image_url"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 type PhotoResult struct {
@@ -61,7 +63,7 @@ func (l *CommunityLogic) Photos(ctx context.Context, req ContentRequest) (*Photo
 	items := make([]PhotoVO, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, PhotoVO{
-			ID: r.ID, Caption: r.Caption, Uploader: r.Uploader, Category: r.Category,
+			LikeCount: r.LikeCount, ReplyCount: r.ReplyCount, ID: r.ID, Caption: r.Caption, Uploader: r.Uploader, Category: r.Category,
 			ImageURL: fmt.Sprintf("/api/v1/photos/%d/image", r.ID), CreatedAt: r.CreatedAt,
 		})
 	}
@@ -251,11 +253,21 @@ type ReplyRequest struct {
 }
 
 func (l *CommunityLogic) Replies(ctx context.Context, id uint64, req ContentRequest) (*ReplyResult, error) {
-	if _, err := l.store.FindPost(ctx, id); err != nil {
+	return l.contentReplies(ctx, "post", id, req)
+}
+func (l *CommunityLogic) PhotoReplies(ctx context.Context, id uint64, req ContentRequest) (*ReplyResult, error) {
+	return l.contentReplies(ctx, "photo", id, req)
+}
+func (l *CommunityLogic) contentReplies(ctx context.Context, kind string, id uint64, req ContentRequest) (*ReplyResult, error) {
+	if err := l.findContent(ctx, kind, id); err != nil {
 		return nil, businessError(err)
 	}
 	page, size := pagination(req.Page, req.PageSize)
-	rows, total, err := l.store.ListReplies(ctx, id, dao.ContentQuery{Page: page, PageSize: size})
+	list := l.store.ListReplies
+	if kind == "photo" {
+		list = l.store.ListPhotoReplies
+	}
+	rows, total, err := list(ctx, id, dao.ContentQuery{Page: page, PageSize: size})
 	if err != nil {
 		return nil, businessError(err)
 	}
@@ -267,6 +279,12 @@ func (l *CommunityLogic) Replies(ctx context.Context, id uint64, req ContentRequ
 }
 
 func (l *CommunityLogic) Reply(ctx context.Context, id uint64, req ReplyRequest, key string) (int64, error) {
+	return l.contentReply(ctx, "post", id, req, key)
+}
+func (l *CommunityLogic) PhotoReply(ctx context.Context, id uint64, req ReplyRequest, key string) (int64, error) {
+	return l.contentReply(ctx, "photo", id, req, key)
+}
+func (l *CommunityLogic) contentReply(ctx context.Context, kind string, id uint64, req ReplyRequest, key string) (int64, error) {
 	actor, err := CurrentActor(ctx)
 	if err != nil {
 		return 0, err
@@ -280,8 +298,12 @@ func (l *CommunityLogic) Reply(ctx context.Context, id uint64, req ReplyRequest,
 	}
 	row := &model.Reply{UserID: actor.UserID, PostID: id, ParentID: req.ParentID, Nickname: nickname, Content: content, Status: "active", CreateKey: actorCreateKey(actor.UserID, key, struct {
 		PostID uint64
+		Kind   string
 		ReplyRequest
-	}{PostID: id, ReplyRequest: req})}
+	}{PostID: id, Kind: kind, ReplyRequest: req})}
+	if kind == "photo" {
+		row.PostID, row.PhotoID = 0, id
+	}
 	count, err := l.store.CreateReply(ctx, row)
 	return count, businessError(err)
 }

@@ -1,8 +1,9 @@
 package controller
 
 import (
-	"YuLing_senior_high_school/pkg/resp"
 	"github.com/gin-gonic/gin"
+
+	"YuLing_senior_high_school/pkg/resp"
 )
 
 func (h *CommunityController) Post(c *gin.Context) {
@@ -14,7 +15,9 @@ func (h *CommunityController) Post(c *gin.Context) {
 	respond(c, row, err)
 }
 
-func (h *CommunityController) PostLikes(c *gin.Context) {
+func (h *CommunityController) PostLikes(c *gin.Context) { h.contentLikes(c, "post") }
+
+func (h *CommunityController) contentLikes(c *gin.Context, kind string) {
 	id, ok := requestID(c)
 	if !ok {
 		return
@@ -30,6 +33,22 @@ func (h *CommunityController) PostLikes(c *gin.Context) {
 		}
 		liked = req.Liked
 	}
-	state, err := h.logic.PostLikes(c.Request.Context(), id, liked)
+	likes := h.logic.PostLikes
+	if kind == "photo" {
+		likes = h.logic.PhotoLikes
+	}
+	state, err := likes(c.Request.Context(), id, liked)
 	respond(c, state, err)
 }
+
+func (h *CommunityController) Photo(c *gin.Context) {
+	id, ok := requestID(c)
+	if !ok {
+		return
+	}
+	row, err := h.logic.Photo(c.Request.Context(), id)
+	respond(c, row, err)
+}
+func (h *CommunityController) PhotoLikes(c *gin.Context)   { h.contentLikes(c, "photo") }
+func (h *CommunityController) PhotoReplies(c *gin.Context) { h.contentReplies(c, "photo") }
+func (h *CommunityController) PhotoReply(c *gin.Context)   { h.contentReply(c, "photo") }

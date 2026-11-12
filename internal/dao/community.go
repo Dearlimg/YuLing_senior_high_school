@@ -21,7 +21,9 @@ func (s *SQLStore) ListPhotos(ctx context.Context, q ContentQuery) ([]model.Phot
 		return nil, 0, err
 	}
 	rows := []model.Photo{}
-	err := tx.Omit("Image", "DeleteCodeHash", "CreateKey").Order("id DESC").
+	err := tx.Select("photo.id, photo.caption, photo.uploader, photo.category, photo.created_at, " +
+		"(SELECT COUNT(*) FROM content_like WHERE kind = 'photo' AND target_id = photo.id) AS like_count, " +
+		"(SELECT COUNT(*) FROM reply WHERE reply.photo_id = photo.id AND reply.status = 'active') AS reply_count").Order("id DESC").
 		Offset((q.Page - 1) * q.PageSize).Limit(q.PageSize).Find(&rows).Error
 	return rows, total, err
 }
@@ -85,41 +87,58 @@ func (s *SQLStore) CreatePost(ctx context.Context, row *model.Post) error {
 	return recordError(s.db.WithContext(ctx).Create(row).Error)
 }
 
-func (s *SQLStore) ListReplies(ctx context.Context, postID uint64, q ContentQuery) ([]model.Reply, int64, error) {
+func (s *SQLStore) ListReplies(ctx context.Context, id uint64, q ContentQuery) ([]model.Reply, int64, error) {
+	return s.listContentReplies(ctx, "post", id, q)
+}
+
+func (s *SQLStore) ListPhotoReplies(ctx context.Context, id uint64, q ContentQuery) ([]model.Reply, int64, error) {
+	return s.listContentReplies(ctx, "photo", id, q)
+}
+
+func (s *SQLStore) listContentReplies(ctx context.Context, kind string, id uint64, q ContentQuery) ([]model.Reply, int64, error) {
+	if contentEntity(kind) == nil {
+		return nil, 0, ErrNotFound
+	}
 	tx := s.db.WithContext(ctx).Model(&model.Reply{}).
-		Joins("JOIN post ON post.id = reply.post_id AND post.status = ?", "active").
+		Joins("JOIN "+kind+" ON "+kind+".id = reply."+kind+"_id AND "+kind+".status = ?", "active").
 		Joins("LEFT JOIN reply AS target ON target.id = reply.parent_id AND target.status = ?", "active").
-		Where("reply.post_id = ? AND reply.status = ?", postID, "active")
+		Where("reply."+kind+"_id = ? AND reply.status = ?", id, "active")
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	rows := []model.Reply{}
-	err := tx.Select("reply.id, reply.post_id, reply.parent_id, target.nickname AS parent_nickname, reply.nickname, reply.content, reply.created_at").
+	err := tx.Select("reply.id, reply.post_id, reply.photo_id, reply.parent_id, target.nickname AS parent_nickname, reply.nickname, reply.content, reply.created_at").
 		Order("reply.id ASC").Offset((q.Page - 1) * q.PageSize).Limit(q.PageSize).Find(&rows).Error
 	return rows, total, err
 }
 
 func (s *SQLStore) CreateReply(ctx context.Context, row *model.Reply) (int64, error) {
+	kind, id := "post", row.PostID
+	if row.PhotoID != 0 {
+		kind, id = "photo", row.PhotoID
+	}
+	if id == 0 || (row.PhotoID != 0 && row.PostID != 0) {
+		return 0, ErrNotFound
+	}
 	var count int64
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Parent lock serializes moderation and replies.
-		var parent model.Post
+		parent := contentEntity(kind)
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").
-			Where("id = ? AND status = ?", row.PostID, "active").First(&parent).Error; err != nil {
+			Where("id = ? AND status = ?", id, "active").First(parent).Error; err != nil {
 			return recordError(err)
 		}
 		if row.ParentID != 0 {
 			var target model.Reply
 			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").
-				Where("id = ? AND post_id = ? AND status = ?", row.ParentID, row.PostID, "active").First(&target).Error; err != nil {
+				Where("id = ? AND "+kind+"_id = ? AND status = ?", row.ParentID, id, "active").First(&target).Error; err != nil {
 				return recordError(err)
 			}
 		}
 		if err := tx.Create(row).Error; err != nil {
 			return recordError(err)
 		}
-		return tx.Model(&model.Reply{}).Where("post_id = ? AND status = ?", row.PostID, "active").Count(&count).Error
+		return tx.Model(&model.Reply{}).Where(kind+"_id = ? AND status = ?", id, "active").Count(&count).Error
 	})
 	return count, err
 }

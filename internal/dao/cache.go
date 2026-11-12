@@ -160,7 +160,7 @@ func (s *CachedStore) ListPhotos(ctx context.Context, q ContentQuery) ([]model.P
 	page, err := cached(ctx, s, "photos", q, func() (cachedPage[model.Photo], error) {
 		rows, total, err := s.Store.ListPhotos(ctx, q)
 		for i, row := range rows {
-			rows[i] = model.Photo{ID: row.ID, Caption: row.Caption, Uploader: row.Uploader, Category: row.Category, CreatedAt: row.CreatedAt}
+			rows[i] = model.Photo{LikeCount: row.LikeCount, ReplyCount: row.ReplyCount, ID: row.ID, Caption: row.Caption, Uploader: row.Uploader, Category: row.Category, CreatedAt: row.CreatedAt}
 		}
 		return cachedPage[model.Photo]{Rows: rows, Total: total}, err
 	})
@@ -180,13 +180,23 @@ func (s *CachedStore) ListPosts(ctx context.Context, q ContentQuery) ([]model.Po
 }
 
 func (s *CachedStore) ListReplies(ctx context.Context, id uint64, q ContentQuery) ([]model.Reply, int64, error) {
-	page, err := cached(ctx, s, "replies", struct {
+	return s.listContentReplies(ctx, "post", id, q)
+}
+func (s *CachedStore) ListPhotoReplies(ctx context.Context, id uint64, q ContentQuery) ([]model.Reply, int64, error) {
+	return s.listContentReplies(ctx, "photo", id, q)
+}
+func (s *CachedStore) listContentReplies(ctx context.Context, kind string, id uint64, q ContentQuery) ([]model.Reply, int64, error) {
+	page, err := cached(ctx, s, kind+"-replies", struct {
 		ID    uint64
 		Query ContentQuery
 	}{ID: id, Query: q}, func() (cachedPage[model.Reply], error) {
-		rows, total, err := s.Store.ListReplies(ctx, id, q)
+		list := s.Store.ListReplies
+		if kind == "photo" {
+			list = s.Store.ListPhotoReplies
+		}
+		rows, total, err := list(ctx, id, q)
 		for i, row := range rows {
-			rows[i] = model.Reply{ParentID: row.ParentID, ParentNickname: row.ParentNickname, ID: row.ID, PostID: row.PostID, Nickname: row.Nickname, Content: row.Content, CreatedAt: row.CreatedAt}
+			rows[i] = model.Reply{ParentID: row.ParentID, ParentNickname: row.ParentNickname, ID: row.ID, PostID: row.PostID, PhotoID: row.PhotoID, Nickname: row.Nickname, Content: row.Content, CreatedAt: row.CreatedAt}
 		}
 		return cachedPage[model.Reply]{Rows: rows, Total: total}, err
 	})

@@ -89,6 +89,7 @@ type Store interface {
 	FindPost(context.Context, uint64) (*model.Post, error)
 	CreatePost(context.Context, *model.Post) error
 	ListReplies(context.Context, uint64, ContentQuery) ([]model.Reply, int64, error)
+	ListPhotoReplies(context.Context, uint64, ContentQuery) ([]model.Reply, int64, error)
 	CreateReply(context.Context, *model.Reply) (int64, error)
 	Moderate(context.Context, model.AuditLog) error
 	Inspect(context.Context, string, uint64) (*ModerationItem, error)

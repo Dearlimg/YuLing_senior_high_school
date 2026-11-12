@@ -1,4 +1,4 @@
-import { openPost } from "./content-detail.js";
+import { openPost, openPhoto } from "./content-detail.js";
 import { api, compressImage, requestKey, session } from "./api.js";
 import { icon } from "./icons.js";
 import {
@@ -99,7 +99,7 @@ export async function moments(url) {
   );
   const categories = ["校园风景", "老照片", "运动场上", "其他"];
   return {
-    html: `<div class="wrap page-content">${sectionHead("CAMPUS MOMENTS", "把时光，留在校园里", "教学楼前的合影、运动会的冲刺、毕业那天的教室。总有一帧画面，让我们回到从前。", '<button class="button primary" id="upload-photo">' + icon("plus") + "分享一张照片</button>")}<div class="moments-intro"><div><span class="eyebrow">OUR SHARED MEMORIES</span><h2>记忆会泛黄，<br>而青春始终明亮。</h2><p>所有榆中人共享的照片墙，<br>让散落的光影，汇成我们共同的相册。</p></div><img src="/assets/campus-detail.jpg" alt="榆林中学校园历史影像" width="720" height="320"/><span class="moments-intro-label">岁月留声 · 榆中记忆</span></div><div class="section-heading album-heading"><div><h2>共享相册 <span class="count-label">${result.total} 张照片</span></h2></div><div class="category-filters">${["", ...categories].map((c) => `<button class="chip ${category === c ? "active" : ""}" data-category="${c}" aria-pressed="${category === c}">${c || "全部记忆"}</button>`).join("")}</div></div>${result.items.length ? `<div class="photo-columns">${result.items.map((p) => `<article class="photo-card"><button class="photo-open" data-image="${esc(p.image_url)}" data-caption="${esc(p.caption)}" aria-label="预览：${esc(p.caption)}"><img src="${esc(p.image_url)}" alt="${esc(p.caption)}" loading="lazy"/></button><div class="photo-card-info"><span class="photo-category">${esc(p.category)}</span><h3>${esc(p.caption)}</h3><div><span>${esc(p.uploader)} <i>·</i> ${dateLabel(p.created_at)}</span><button class="text-link manage-photo" data-id="${p.id}">管理照片</button></div></div></article>`).join("")}</div>` : empty("这里，等一张你的校园记忆", "第一张照片，也许就是故事的开始。", '<button class="button primary" id="empty-upload">分享照片</button>')}${pagination(page, result.total, 12)}<p class="privacy-note">${icon("image")}照片对所有人可见，先发后审。请勿上传未获许可的照片或他人隐私。登录后可以撤下自己上传的照片。</p><p class="image-credit">校园历史影像来源：<a href="https://web.sjpt.ylrb.com/cms/rmt2420/2/2xw/yl/387623.shtml" target="_blank" rel="noopener noreferrer">榆林日报 · 榆林中学 120 周年专题</a></p></div>`,
+    html: `<div class="wrap page-content">${sectionHead("CAMPUS MOMENTS", "把时光，留在校园里", "教学楼前的合影、运动会的冲刺、毕业那天的教室。总有一帧画面，让我们回到从前。", '<button class="button primary" id="upload-photo">' + icon("plus") + "分享一张照片</button>")}<div class="moments-intro"><div><span class="eyebrow">OUR SHARED MEMORIES</span><h2>记忆会泛黄，<br>而青春始终明亮。</h2><p>所有榆中人共享的照片墙，<br>让散落的光影，汇成我们共同的相册。</p></div><img src="/assets/campus-detail.jpg" alt="榆林中学校园历史影像" width="720" height="320"/><span class="moments-intro-label">岁月留声 · 榆中记忆</span></div><div class="section-heading album-heading"><div><h2>共享相册 <span class="count-label">${result.total} 张照片</span></h2></div><div class="category-filters">${["", ...categories].map((c) => `<button class="chip ${category === c ? "active" : ""}" data-category="${c}" aria-pressed="${category === c}">${c || "全部记忆"}</button>`).join("")}</div></div>${result.items.length ? `<div class="photo-columns">${result.items.map((p) => `<article class="photo-card"><button class="photo-open" data-open-photo="${p.id}" aria-label="查看：${esc(p.caption)}"><img src="${esc(p.image_url)}" alt="${esc(p.caption)}" loading="lazy"/></button><div class="photo-card-info"><span class="photo-category">${esc(p.category)}</span><h3>${esc(p.caption)}</h3><div><span>${esc(p.uploader)} <i>·</i> ${dateLabel(p.created_at)}</span><button class="text-link manage-photo" data-id="${p.id}">管理照片</button></div><div class="photo-interactions"><button class="text-link" data-open-photo="${p.id}" aria-label="打开照片点赞">${icon("heart")}<span data-photo-likes="${p.id}">${p.like_count}</span></button><button class="text-link" data-open-photo="${p.id}" aria-label="查看照片评论">${icon("chat")}<span data-photo-count="${p.id}">${p.reply_count}</span></button></div></div></article>`).join("")}</div>` : empty("这里，等一张你的校园记忆", "第一张照片，也许就是故事的开始。", '<button class="button primary" id="empty-upload">分享照片</button>')}${pagination(page, result.total, 12)}<p class="privacy-note">${icon("image")}照片对所有人可见，先发后审。请勿上传未获许可的照片或他人隐私。登录后可以撤下自己上传的照片。</p><p class="image-credit">校园历史影像来源：<a href="https://web.sjpt.ylrb.com/cms/rmt2420/2/2xw/yl/387623.shtml" target="_blank" rel="noopener noreferrer">榆林日报 · 榆林中学 120 周年专题</a></p></div>`,
     bind(root) {
       const openUpload = () => {
         if (!session()) { navigate("/login?next=/moments"); return; }
@@ -147,17 +147,9 @@ export async function moments(url) {
                 `/moments?page=${b.dataset.page}&category=${encodeURIComponent(category)}`,
               )),
         );
-      root
-        .querySelectorAll("[data-image]")
-        .forEach(
-          (b) =>
-            (b.onclick = () =>
-              modal(
-                "校园记忆",
-                `<img class="lightbox-image" src="${esc(b.dataset.image)}" alt="${esc(b.dataset.caption)}"/><p class="lightbox-caption">${esc(b.dataset.caption)}</p>`,
-                "lightbox",
-              )),
-        );
+      root.querySelectorAll("[data-open-photo]").forEach(button => button.onclick=()=>openPhoto(button.dataset.openPhoto));
+      const selected = Number(url.searchParams.get("photo"));
+      if (Number.isSafeInteger(selected) && selected > 0) openPhoto(selected);
       root.querySelectorAll(".manage-photo").forEach(
         (b) =>
           (b.onclick = () => {

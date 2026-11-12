@@ -4,6 +4,8 @@ import "time"
 
 // Photo persists compressed image bytes alongside their access state.
 type Photo struct {
+	LikeCount      int64   `gorm:"->;-:migration"`
+	ReplyCount     int64   `gorm:"->;-:migration"`
 	UserID         uint64  `gorm:"not null;default:0;index"`
 	ID             uint64  `gorm:"primaryKey"`
 	Caption        string  `gorm:"type:varchar(80);not null"`
@@ -41,6 +43,7 @@ type Post struct {
 func (Post) TableName() string { return "post" }
 
 type Reply struct {
+	PhotoID        uint64  `gorm:"not null;default:0;index"`
 	UserID         uint64  `gorm:"not null;default:0;index"`
 	ID             uint64  `gorm:"primaryKey"`
 	PostID         uint64  `gorm:"not null;index"`

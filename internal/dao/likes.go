@@ -31,9 +31,12 @@ func (s *SQLStore) Likes(ctx context.Context, target model.ContentLike) (LikeSta
 func (s *SQLStore) SetLike(ctx context.Context, target model.ContentLike, liked bool) (LikeState, error) {
 	state := LikeState{}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var parent model.Post
+		parent := contentEntity(target.Kind)
+		if parent == nil {
+			return ErrNotFound
+		}
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").
-			Where("id = ? AND status = ?", target.TargetID, "active").First(&parent).Error; err != nil {
+			Where("id = ? AND status = ?", target.TargetID, "active").First(parent).Error; err != nil {
 			return recordError(err)
 		}
 		if liked {
@@ -77,8 +80,7 @@ func (s *MemoryStore) Likes(_ context.Context, target model.ContentLike) (LikeSt
 func (s *MemoryStore) SetLike(_ context.Context, target model.ContentLike, liked bool) (LikeState, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	parent, ok := s.posts[target.TargetID]
-	if !ok || parent.Status != "active" {
+	if !s.contentActive(target.Kind, target.TargetID) {
 		return LikeState{}, ErrNotFound
 	}
 	if liked {
@@ -95,4 +97,27 @@ func (s *CachedStore) SetLike(ctx context.Context, target model.ContentLike, lik
 		s.invalidate(ctx)
 	}
 	return state, err
+}
+
+// Identifiers and models are chosen from a fixed allowlist.
+func contentEntity(kind string) any {
+	switch kind {
+	case "post":
+		return &model.Post{}
+	case "photo":
+		return &model.Photo{}
+	}
+	return nil
+}
+
+func (s *MemoryStore) contentActive(kind string, id uint64) bool {
+	switch kind {
+	case "post":
+		row, ok := s.posts[id]
+		return ok && row.Status == "active"
+	case "photo":
+		row, ok := s.photos[id]
+		return ok && row.Status == "active"
+	}
+	return false
 }
