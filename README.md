@@ -3,6 +3,11 @@
 榆林中学校友之家 —— 独立的响应式 Web 服务。使用 **Go / Gin / GORM / MySQL / Redis**，
 前端资源通过 Go embed 编入单体二进制，复用自建 k3s 与 Gitea CI，无需 Node 构建或微信 SDK。
 
+## 项目源码与参与贡献
+
+项目地址：[Dearlimg/YuLing_senior_high_school](https://github.com/Dearlimg/YuLing_senior_high_school)。
+欢迎提交 Pull Request（PR），一起完善校友之家。
+
 ## 本次核心功能
 
 首页、账号注册/登录、校友登记/在读报到、电子校友卡、个人中心编辑、通讯录搜索/届别/班级/分页、大学去向、
