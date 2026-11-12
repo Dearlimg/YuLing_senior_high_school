@@ -13,11 +13,21 @@ export async function openPost(id) {
     if (host.detailTicket !== ticket || !document.querySelector("#modal").open) return;
     const loginPath = `/login?next=${encodeURIComponent(`/forum?post=${id}`)}`;
     host.querySelector(".modal-head h2").textContent = "同窗动态";
-    host.insertAdjacentHTML("beforeend", `<div class="content-detail"><div class="detail-media">${post.image_url ? `<img src="${esc(post.image_url)}" alt="${esc(post.nickname)}分享的照片"/>` : `<div class="detail-text-cover"><span class="eyebrow">同窗手记</span><p>${esc(post.content)}</p><span>写给时光，也写给你</span></div>`}</div><section class="detail-panel"><header class="post-author">${avatar({name:post.nickname,avatar_color:post.avatar_color})}<div><strong>${esc(post.nickname)}</strong><small>${post.graduation_year ? `${post.graduation_year}届 · ` : ""}${dateLabel(post.created_at)}</small></div></header><div class="detail-scroll"><p class="detail-caption">${esc(post.content)}</p><h3 class="comments-heading">评论 <span data-comment-count>${post.reply_count}</span></h3><div class="detail-comments" aria-live="polite"></div><button class="text-link more-comments" hidden>查看更多评论</button><p class="comment-error form-error" role="alert" hidden></p></div><footer class="detail-actions"><button class="like-button" aria-pressed="false" aria-label="点赞">${icon("heart")}<span>${post.like_count}</span></button><span class="subtle">${icon("chat")} <span data-comment-total>${post.reply_count}</span></span><form class="detail-reply-form"><label class="sr-only" for="detail-reply">写下评论</label><textarea id="detail-reply" name="content" rows="2" maxlength="500" required placeholder="说点什么，让同窗听见…"></textarea><p class="form-error" role="alert" tabindex="-1" hidden></p><button class="button primary" type="submit">发送</button></form></footer></section></div>`);
+    host.insertAdjacentHTML("beforeend", `<div class="content-detail"><div class="detail-media">${post.image_url ? `<img src="${esc(post.image_url)}" alt="${esc(post.nickname)}分享的照片"/>` : `<div class="detail-text-cover"><span class="eyebrow">同窗手记</span><p>${esc(post.content)}</p><span>写给时光，也写给你</span></div>`}</div><section class="detail-panel"><header class="post-author">${avatar({name:post.nickname,avatar_color:post.avatar_color})}<div><strong>${esc(post.nickname)}</strong><small>${post.graduation_year ? `${post.graduation_year}届 · ` : ""}${dateLabel(post.created_at)}</small></div></header><div class="detail-scroll"><p class="detail-caption">${esc(post.content)}</p><h3 class="comments-heading">评论 <span data-comment-count>${post.reply_count}</span></h3><div class="detail-comments" aria-live="polite"></div><button class="text-link more-comments" hidden>查看更多评论</button><p class="comment-error form-error" role="alert" hidden></p></div><footer class="detail-actions"><button class="like-button" aria-pressed="false" aria-label="点赞">${icon("heart")}<span>${post.like_count}</span></button><span class="subtle">${icon("chat")} <span data-comment-total>${post.reply_count}</span></span><div class="reply-target" hidden><span></span><button class="text-link cancel-reply" type="button">取消回复</button></div><form class="detail-reply-form"><label class="sr-only" for="detail-reply">写下评论</label><textarea id="detail-reply" name="content" rows="2" maxlength="500" required placeholder="说点什么，让同窗听见…"></textarea><p class="form-error" role="alert" tabindex="-1" hidden></p><button class="button primary" type="submit">发送</button></form></footer></section></div>`);
     host.querySelector(":scope > .subtle")?.remove();
     const comments = host.querySelector(".detail-comments");
     const more = host.querySelector(".more-comments");
     let page = 1;
+    let parentID = 0;
+    const target = host.querySelector(".reply-target");
+    const selectReply = (id, nickname = "") => {
+      parentID = id;
+      target.hidden = !id;
+      target.querySelector("span").textContent = id ? `回复 ${nickname}` : "";
+      host.querySelector("#detail-reply").placeholder = id ? `回复 ${nickname}…` : "说点什么，让同窗听见…";
+      if (id) host.querySelector("#detail-reply").focus();
+    };
+    target.querySelector("button").onclick = () => selectReply(0);
     const load = async (reset = false) => {
       more.disabled = true;
       const error = host.querySelector(".comment-error");
@@ -27,7 +37,8 @@ export async function openPost(id) {
         if (host.detailTicket !== ticket) return;
         if (reset) { page = 1; comments.innerHTML = ""; }
         comments.querySelector(".no-comments")?.remove();
-        comments.insertAdjacentHTML("beforeend", result.items.map(r => `<article class="reply-item">${avatar({name:r.nickname},"small")}<div><strong>${esc(r.nickname)}</strong><p>${esc(r.content)}</p><small>${dateLabel(r.created_at)}</small></div></article>`).join("") || (!result.total ? '<p class="subtle no-comments">还没有评论，留下第一声问候吧。</p>' : ""));
+        comments.insertAdjacentHTML("beforeend", result.items.map(r => `<article class="reply-item">${avatar({name:r.nickname},"small")}<div><strong>${esc(r.nickname)}</strong><p>${r.parent_id ? `<span class="reply-mention">回复 ${esc(r.parent_nickname || "已隐藏的评论")}：</span>` : ""}${esc(r.content)}</p><small>${dateLabel(r.created_at)}</small> <button class="text-link reply-to-comment" data-reply-id="${r.id}" data-reply-name="${esc(r.nickname)}">回复</button></div></article>`).join("") || (!result.total ? '<p class="subtle no-comments">还没有评论，留下第一声问候吧。</p>' : ""));
+        comments.querySelectorAll("[data-reply-id]").forEach(button => button.onclick = () => selectReply(Number(button.dataset.replyId),button.dataset.replyName));
         page++;
         more.hidden = !result.has_more;
         host.querySelectorAll("[data-comment-count], [data-comment-total]").forEach(el => el.textContent = result.total);
@@ -42,8 +53,8 @@ export async function openPost(id) {
       event.preventDefault();
       if (!session()) { navigate(loginPath); return; }
       busy(form, async () => {
-        await api(`/posts/${id}/replies`, {method:"POST", headers:{"Idempotency-Key":key}, body:JSON.stringify({content:form.elements.content.value})});
-        key = requestKey(); form.reset(); await load(true); toast("评论已发送");
+        await api(`/posts/${id}/replies`, {method:"POST", headers:{"Idempotency-Key":key}, body:JSON.stringify({content:form.elements.content.value,parent_id:parentID})});
+        key = requestKey(); form.reset(); selectReply(0); await load(true); toast("评论已发送");
       });
     };
     const like = host.querySelector(".like-button");

@@ -350,6 +350,9 @@ func (s *MemoryStore) ListReplies(_ context.Context, id uint64, q ContentQuery) 
 	rows := []model.Reply{}
 	for _, r := range s.replies {
 		if r.PostID == id && r.Status == "active" {
+			if target, ok := s.replies[r.ParentID]; ok && target.Status == "active" {
+				r.ParentNickname = target.Nickname
+			}
 			rows = append(rows, r)
 		}
 	}
@@ -363,6 +366,12 @@ func (s *MemoryStore) CreateReply(_ context.Context, row *model.Reply) (int64, e
 	parent, ok := s.posts[row.PostID]
 	if !ok || parent.Status != "active" {
 		return 0, ErrNotFound
+	}
+	if row.ParentID != 0 {
+		target, ok := s.replies[row.ParentID]
+		if !ok || target.Status != "active" || target.PostID != row.PostID {
+			return 0, ErrNotFound
+		}
 	}
 	if err := s.useKey("reply", row.CreateKey); err != nil {
 		return 0, err

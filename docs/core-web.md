@@ -92,3 +92,11 @@ sqlmock 验证真实 GORM 生成的语句与事务编排，但不替代 MySQL �
 和 `{ "liked": true|false }`，按用户与帖子唯一且可重试；`GET` 同路径读取本人状态。
 `GET /api/v1/posts/:id` 返回公开详情及互动计数。直接访问 `/forum?post=编号` 可打开对应详情。
 上线前须执行 `go run ./cmd/migrate` 创建 `content_like`；启动会检查表结构。
+
+
+## 回复任意评论
+
+发评论时可传 `parent_id`（省略或 0 表示直接评论帖子）。列表返回 `parent_id`、
+`parent_nickname`；每条评论均提供回复按钮和取消回复入口。回复目标可为任意层级评论，
+必须在同一帖子且仍可见，事务内校验，禁止跨帖回复。目标隐藏后保留后续讨论，
+但不公开被隐藏目标的署名。上线前迁移 `reply.parent_id` 字段。

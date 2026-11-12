@@ -186,7 +186,7 @@ func (s *CachedStore) ListReplies(ctx context.Context, id uint64, q ContentQuery
 	}{ID: id, Query: q}, func() (cachedPage[model.Reply], error) {
 		rows, total, err := s.Store.ListReplies(ctx, id, q)
 		for i, row := range rows {
-			rows[i] = model.Reply{ID: row.ID, PostID: row.PostID, Nickname: row.Nickname, Content: row.Content, CreatedAt: row.CreatedAt}
+			rows[i] = model.Reply{ParentID: row.ParentID, ParentNickname: row.ParentNickname, ID: row.ID, PostID: row.PostID, Nickname: row.Nickname, Content: row.Content, CreatedAt: row.CreatedAt}
 		}
 		return cachedPage[model.Reply]{Rows: rows, Total: total}, err
 	})

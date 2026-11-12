@@ -232,10 +232,12 @@ func (l *CommunityLogic) PostImage(ctx context.Context, id uint64) ([]byte, stri
 }
 
 type ReplyVO struct {
-	ID        uint64    `json:"id"`
-	Nickname  string    `json:"nickname"`
-	Content   string    `json:"content"`
-	CreatedAt time.Time `json:"created_at"`
+	ParentID       uint64    `json:"parent_id"`
+	ParentNickname string    `json:"parent_nickname,omitempty"`
+	ID             uint64    `json:"id"`
+	Nickname       string    `json:"nickname"`
+	Content        string    `json:"content"`
+	CreatedAt      time.Time `json:"created_at"`
 }
 type ReplyResult struct {
 	Items   []ReplyVO `json:"items"`
@@ -243,6 +245,7 @@ type ReplyResult struct {
 	HasMore bool      `json:"has_more"`
 }
 type ReplyRequest struct {
+	ParentID uint64 `json:"parent_id"`
 	Nickname string `json:"nickname"`
 	Content  string `json:"content"`
 }
@@ -258,7 +261,7 @@ func (l *CommunityLogic) Replies(ctx context.Context, id uint64, req ContentRequ
 	}
 	items := make([]ReplyVO, 0, len(rows))
 	for _, r := range rows {
-		items = append(items, ReplyVO{ID: r.ID, Nickname: r.Nickname, Content: r.Content, CreatedAt: r.CreatedAt})
+		items = append(items, ReplyVO{ParentID: r.ParentID, ParentNickname: r.ParentNickname, ID: r.ID, Nickname: r.Nickname, Content: r.Content, CreatedAt: r.CreatedAt})
 	}
 	return &ReplyResult{Items: items, Total: total, HasMore: int64(page*size) < total}, nil
 }
@@ -275,7 +278,7 @@ func (l *CommunityLogic) Reply(ctx context.Context, id uint64, req ReplyRequest,
 	if err := validateText("回复", content, 500, true); err != nil {
 		return 0, err
 	}
-	row := &model.Reply{UserID: actor.UserID, PostID: id, Nickname: nickname, Content: content, Status: "active", CreateKey: actorCreateKey(actor.UserID, key, struct {
+	row := &model.Reply{UserID: actor.UserID, PostID: id, ParentID: req.ParentID, Nickname: nickname, Content: content, Status: "active", CreateKey: actorCreateKey(actor.UserID, key, struct {
 		PostID uint64
 		ReplyRequest
 	}{PostID: id, ReplyRequest: req})}

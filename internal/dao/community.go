@@ -88,13 +88,14 @@ func (s *SQLStore) CreatePost(ctx context.Context, row *model.Post) error {
 func (s *SQLStore) ListReplies(ctx context.Context, postID uint64, q ContentQuery) ([]model.Reply, int64, error) {
 	tx := s.db.WithContext(ctx).Model(&model.Reply{}).
 		Joins("JOIN post ON post.id = reply.post_id AND post.status = ?", "active").
+		Joins("LEFT JOIN reply AS target ON target.id = reply.parent_id AND target.status = ?", "active").
 		Where("reply.post_id = ? AND reply.status = ?", postID, "active")
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	rows := []model.Reply{}
-	err := tx.Select("reply.id, reply.post_id, reply.nickname, reply.content, reply.created_at").
+	err := tx.Select("reply.id, reply.post_id, reply.parent_id, target.nickname AS parent_nickname, reply.nickname, reply.content, reply.created_at").
 		Order("reply.id ASC").Offset((q.Page - 1) * q.PageSize).Limit(q.PageSize).Find(&rows).Error
 	return rows, total, err
 }
@@ -107,6 +108,13 @@ func (s *SQLStore) CreateReply(ctx context.Context, row *model.Reply) (int64, er
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").
 			Where("id = ? AND status = ?", row.PostID, "active").First(&parent).Error; err != nil {
 			return recordError(err)
+		}
+		if row.ParentID != 0 {
+			var target model.Reply
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").
+				Where("id = ? AND post_id = ? AND status = ?", row.ParentID, row.PostID, "active").First(&target).Error; err != nil {
+				return recordError(err)
+			}
 		}
 		if err := tx.Create(row).Error; err != nil {
 			return recordError(err)

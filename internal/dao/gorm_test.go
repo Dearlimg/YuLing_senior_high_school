@@ -102,6 +102,26 @@ func TestGORMReplyTransactionRejectsHiddenParent(t *testing.T) {
 	}
 }
 
+func TestGORMReplyTransactionRejectsTargetOutsidePost(t *testing.T) {
+	store, mock, queries := mockStore(t)
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT").WithArgs(uint64(7), "active", 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(7))
+	mock.ExpectQuery("SELECT").WithArgs(uint64(3), uint64(7), "active", 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}))
+	mock.ExpectRollback()
+	_, err := store.CreateReply(context.Background(), &model.Reply{PostID: 7, ParentID: 3, Content: "回复"})
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("got %v", err)
+	}
+	if !strings.Contains((*queries)[1], "post_id = ?") || !strings.Contains((*queries)[1], "FOR UPDATE") {
+		t.Fatal("reply target must be locked and scoped to the current post")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestGORMCreateTranslatesDuplicateAndRollsBack(t *testing.T) {
 	store, mock, _ := mockStore(t)
 	mock.ExpectBegin()

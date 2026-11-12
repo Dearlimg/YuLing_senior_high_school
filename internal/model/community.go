@@ -41,15 +41,17 @@ type Post struct {
 func (Post) TableName() string { return "post" }
 
 type Reply struct {
-	UserID    uint64  `gorm:"not null;default:0;index"`
-	ID        uint64  `gorm:"primaryKey"`
-	PostID    uint64  `gorm:"not null;index"`
-	Nickname  string  `gorm:"type:varchar(64);not null"`
-	Content   string  `gorm:"type:varchar(500);not null"`
-	CreateKey *string `gorm:"type:char(64);uniqueIndex:idx_reply_create_key"`
-	Status    string  `gorm:"type:varchar(16);not null;default:active"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	UserID         uint64  `gorm:"not null;default:0;index"`
+	ID             uint64  `gorm:"primaryKey"`
+	PostID         uint64  `gorm:"not null;index"`
+	ParentID       uint64  `gorm:"not null;default:0;index"`
+	ParentNickname string  `gorm:"->;-:migration"`
+	Nickname       string  `gorm:"type:varchar(64);not null"`
+	Content        string  `gorm:"type:varchar(500);not null"`
+	CreateKey      *string `gorm:"type:char(64);uniqueIndex:idx_reply_create_key"`
+	Status         string  `gorm:"type:varchar(16);not null;default:active"`
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 func (Reply) TableName() string { return "reply" }

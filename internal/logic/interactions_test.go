@@ -40,3 +40,31 @@ func TestPostLikesAreIdempotentAndRespectVisibility(t *testing.T) {
 		t.Fatalf("hidden like: %v", err)
 	}
 }
+
+func TestRepliesCanTargetAnyVisibleCommentInSamePost(t *testing.T) {
+	ctx := testActorContext()
+	l := NewCommunityLogic(dao.NewMemoryStore())
+	id, _ := l.CreatePost(ctx, PostRequest{Content: "讨论"})
+	_, _ = l.Reply(ctx, id, ReplyRequest{Content: "第一层"}, "r1")
+	_, _ = l.Reply(ctx, id, ReplyRequest{Content: "第二层", ParentID: 1}, "r2")
+	_, err := l.Reply(ctx, id, ReplyRequest{Content: "回复第二层", ParentID: 2}, "r3")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, _ := l.Replies(ctx, id, ContentRequest{})
+	if rows.Total != 3 || rows.Items[2].ParentID != 2 || rows.Items[2].ParentNickname != "测试校友" {
+		t.Fatalf("reply target lost: %+v", rows)
+	}
+	other, _ := l.CreatePost(ctx, PostRequest{Content: "另一个帖子"})
+	if _, err := l.Reply(ctx, other, ReplyRequest{Content: "跨帖回复", ParentID: 2}, "cross"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("cross-post target: %v", err)
+	}
+	_ = l.Moderate(ctx, "reply", 2, ModerationRequest{Action: "hidden", Reason: "test"})
+	if _, err := l.Reply(ctx, id, ReplyRequest{Content: "隐藏目标", ParentID: 2}, "hidden"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("hidden target: %v", err)
+	}
+	rows, _ = l.Replies(ctx, id, ContentRequest{})
+	if rows.Items[1].ParentNickname != "" {
+		t.Fatal("hidden target nickname leaked")
+	}
+}
