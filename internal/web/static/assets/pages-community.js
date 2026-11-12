@@ -1,3 +1,4 @@
+import { openPost } from "./content-detail.js";
 import { api, compressImage, requestKey, session } from "./api.js";
 import { icon } from "./icons.js";
 import {
@@ -187,7 +188,7 @@ export async function moments(url) {
 }
 
 function postCard(post) {
-  return `<article class="post-card" id="post-${post.id}"><div class="post-author">${avatar({ name: post.nickname, avatar_color: post.avatar_color })}<div><strong>${esc(post.nickname)}</strong>${post.graduation_year ? `<span class="year-tag">${post.graduation_year}届</span>` : ""}<small>${dateLabel(post.created_at)}</small></div><span class="post-number">#${String(post.id).padStart(3, "0")}</span></div><p class="post-body">${esc(post.content)}</p>${post.image_url ? `<button class="post-image" data-post-image="${esc(post.image_url)}" aria-label="查看帖子配图"><img src="${esc(post.image_url)}" alt="${esc(post.nickname)}的帖子配图" loading="lazy"/></button>` : ""}<div class="post-bottom"><button class="text-link reply-toggle" data-post="${post.id}" aria-expanded="false">${icon("chat")}<span>回复${post.reply_count ? `（${post.reply_count}）` : ""}</span></button><span>一句回应，也是一次重逢</span></div><div class="replies" id="replies-${post.id}" hidden></div></article>`;
+  return `<article class="feed-card" id="post-${post.id}"><button class="feed-open" data-open-post="${post.id}" aria-label="查看${esc(post.nickname)}的帖子">${post.image_url ? `<img class="feed-cover" src="${esc(post.image_url)}" alt="${esc(post.nickname)}分享的照片" loading="lazy"/>` : `<div class="feed-text-cover tone-${post.id % 3}"><span class="eyebrow">同窗手记 · ${post.graduation_year || "榆中"}</span><p>${esc(post.content)}</p><span>把近况，写给同窗</span></div>`}<h3>${esc(post.content)}</h3></button><div class="feed-meta"><span>${avatar({name:post.nickname,avatar_color:post.avatar_color},"small")}<span>${esc(post.nickname)}</span></span><button class="feed-likes" data-open-post="${post.id}" aria-label="打开帖子点赞">${icon("heart")}<span data-post-likes="${post.id}">${post.like_count}</span></button></div><div class="feed-footer"><small>${dateLabel(post.created_at)}</small><button class="text-link" data-open-post="${post.id}">${icon("chat")}<span data-post-count="${post.id}">${post.reply_count}</span></button></div></article>`;
 }
 export async function forum(url) {
   const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
@@ -195,128 +196,32 @@ export async function forum(url) {
   const sort = url.searchParams.get("sort") === "hot" ? "hot" : "latest";
   const period = url.searchParams.get("period") === "week" ? "week" : "all";
   const [result, ranking] = await Promise.all([
-    api(`/posts?page=${page}&page_size=10&keyword=${encodeURIComponent(keyword)}&sort=${sort}`),
+    api(`/posts?page=${page}&page_size=18&keyword=${encodeURIComponent(keyword)}&sort=${sort}`),
     api(`/posts/ranking?period=${period}`),
   ]);
-  const forumPath = (changes = {}) => {
-    const params = new URLSearchParams({keyword,sort,period,...changes});
-    return `/forum?${params}`;
-  };
+  const forumPath = changes => `/forum?${new URLSearchParams({keyword,sort,period,...changes})}`;
   return {
-    html: `<div class="wrap page-content">${sectionHead("THE ALUMNI COMMON ROOM", "同窗之间，总有话想说", "想说的、想找的、想聊的，都发在这里。把这里当作课间走廊，和老同学聊聊近况。")}<form id="post-search" class="post-search"><label for="post-keyword" class="sr-only">搜索帖子内容或作者</label><input id="post-keyword" name="keyword" maxlength="100" value="${esc(keyword)}" placeholder="搜索帖子内容或作者…"/><button class="button primary" type="submit">${icon("search")}搜索帖子</button>${keyword ? '<a href="/forum" class="text-link">清空</a>' : ""}</form><div class="forum-layout"><section><div class="composer-card"><div class="composer-title">${icon("chat")}<h2>今天，想和同窗说些什么？</h2><small>登录后以校友卡身份发帖</small></div><form id="post-form"><div class="form-grid"><p class="subtle">姓名与届别使用你的校友卡信息。<a href="/me">前往个人中心</a></p></div><label class="field"><span class="sr-only">帖子正文</span><textarea name="content" required maxlength="500" rows="4" placeholder="想对母校、老师或同学说点什么…"></textarea><small class="character-count"><span id="post-count">0</span> / 500</small></label><div id="post-image-picker" hidden>${imagePicker()}</div><div class="composer-bottom"><button class="text-link" id="toggle-post-image" type="button">${icon("image")}配一张图</button><span>每一句近况，都有人愿意听。</span><button class="button primary" type="submit">发布 ${icon("arrow")}</button></div><p class="form-error" role="alert" tabindex="-1" hidden></p></form></div><div class="section-heading post-list-heading"><h2>${keyword ? "搜索结果" : "同窗动态"} <span class="count-label">${result.total} 条</span></h2><div class="category-filters"><button class="chip ${sort === "latest" ? "active" : ""}" data-post-sort="latest">最新</button><button class="chip ${sort === "hot" ? "active" : ""}" data-post-sort="hot">回复最多</button></div></div><div class="post-list">${result.items.map(postCard).join("") || empty("课间走廊还很安静", "来留个言，开启今天的第一段同窗对话。")}</div>${pagination(page, result.total, 10)}</section><aside class="forum-aside"><section class="forum-ranking"><span class="eyebrow">ALUMNI LEADERBOARD</span><h2>同窗热议榜</h2><div class="category-filters"><button class="chip ${period === "all" ? "active" : ""}" data-ranking-period="all">总榜</button><button class="chip ${period === "week" ? "active" : ""}" data-ranking-period="week">近 7 天</button></div><p class="subtle">${period === "week" ? "近 7 天发布的帖子，" : "全部帖子，"}按有效回复数排序</p><ol>${ranking.items.map(p => `<li><a href="/forum?keyword=${encodeURIComponent(p.content.slice(0, 60))}"><strong>${esc(p.content.slice(0, 40))}</strong><span>${esc(p.nickname)} · ${p.reply_count} 条回复</span></a></li>`).join("") || '<li class="subtle">暂时还没有上榜帖子</li>'}</ol></section><div class="forum-welcome"><span class="eyebrow">A PLACE FOR ALL OF US</span><h3>话题不设限，<br>同窗情常在。</h3><p>聊母校，也聊远方。<br>分享喜悦，也诉说想念。</p><div class="forum-prompt">${icon("book")}那些年，最难忘的一节课</div><div class="forum-prompt">${icon("pin")}在同一座城市的你们</div><div class="forum-prompt">${icon("school")}想给学弟学妹的一点建议</div></div><div class="community-guide"><span class="eyebrow">KIND WORDS, WARM HEARTS</span><h3>让这里，像母校一样温暖</h3><p>尊重每一位同窗，友善表达。请勿发布他人隐私、广告或不当内容，公开内容采用先发后审。</p><a href="/privacy" class="text-link">社区与隐私说明 ${icon("up")}</a></div><div class="forum-mini-cta">还没有自己的校友卡？<a href="/register">写下近况，领取一份归属 ${icon("arrow")}</a></div></aside></div></div>`,
+    html: `<div class="wrap page-content forum-page">${sectionHead("THE ALUMNI COMMON ROOM", "同窗之间，总有话想说", "一张照片，一段近况。看看同窗们正在分享什么。", '<button class="button primary" id="compose-post">'+icon("plus")+'分享近况</button>')}<form id="post-search" class="post-search"><label for="post-keyword" class="sr-only">搜索帖子内容或作者</label><input id="post-keyword" name="keyword" maxlength="100" value="${esc(keyword)}" placeholder="搜索同窗、校园与那些年…"/><button class="button primary" type="submit">${icon("search")}搜索</button>${keyword ? '<a href="/forum" class="text-link">清空</a>' : ""}</form><div class="forum-layout feed-layout"><section class="feed-section"><div class="section-heading post-list-heading"><h2>${keyword ? "搜索结果" : "发现同窗"} <span class="count-label">${result.total} 条动态</span></h2><div class="category-filters"><button class="chip ${sort === "latest" ? "active" : ""}" data-post-sort="latest">最新</button><button class="chip ${sort === "hot" ? "active" : ""}" data-post-sort="hot">热议</button></div></div><div class="feed-columns">${result.items.map(postCard).join("") || empty("课间走廊还很安静", "来分享一段近况，开启今天的第一段对话。")}</div>${pagination(page,result.total,18)}</section><aside class="forum-aside"><section class="forum-ranking"><span class="eyebrow">ALUMNI LEADERBOARD</span><h2>同窗热议榜</h2><div class="category-filters"><button class="chip ${period === "all" ? "active" : ""}" data-ranking-period="all">总榜</button><button class="chip ${period === "week" ? "active" : ""}" data-ranking-period="week">近 7 天</button></div><p class="subtle">按有效评论数排序</p><ol>${ranking.items.map(p=>`<li><button class="ranking-open" data-open-post="${p.id}"><strong>${esc(p.content.slice(0,40))}</strong><span>${esc(p.nickname)} · ${p.reply_count} 条评论</span></button></li>`).join("") || '<li class="subtle">还没有上榜帖子</li>'}</ol></section><div class="community-guide"><span class="eyebrow">KIND WORDS, WARM HEARTS</span><h3>让这里，像母校一样温暖</h3><p>聊母校，也聊远方。尊重每一位同窗，友善表达，请勿发布他人隐私。</p><a href="/privacy" class="text-link">社区与隐私说明 ${icon("up")}</a></div></aside></div></div>`,
     bind(root) {
-      const search = root.querySelector("#post-search");
-      search.onsubmit = (event) => { event.preventDefault(); navigate(forumPath({keyword:search.elements.keyword.value.trim(),page:1})); };
-      root.querySelectorAll("[data-post-sort]").forEach(button => button.onclick = () => navigate(forumPath({sort:button.dataset.postSort,page:1})));
-      root.querySelectorAll("[data-ranking-period]").forEach(button => button.onclick = () => navigate(forumPath({period:button.dataset.rankingPeriod})));
-      const form = root.querySelector("#post-form");
-      bindPicker(form);
-      const key = requestKey();
-      form.elements.content.oninput = () =>
-        (root.querySelector("#post-count").textContent =
-          form.elements.content.value.length);
-      root.querySelector("#toggle-post-image").onclick = () => {
-        const box = root.querySelector("#post-image-picker");
-        box.hidden = !box.hidden;
-        if (box.hidden) {
-          form.elements.image.value = "";
-          form.elements.image.dispatchEvent(new Event("change"));
-        }
-      };
-      form.onsubmit = (e) => {
-        e.preventDefault();
-        if (!session()) { navigate("/login?next=/forum"); return; }
-        busy(form, async () => {
+      root.querySelector("#post-search").onsubmit = event => {event.preventDefault();navigate(forumPath({keyword:event.currentTarget.elements.keyword.value.trim(),page:1}));};
+      root.querySelectorAll("[data-post-sort]").forEach(b=>b.onclick=()=>navigate(forumPath({sort:b.dataset.postSort,page:1})));
+      root.querySelectorAll("[data-ranking-period]").forEach(b=>b.onclick=()=>navigate(forumPath({period:b.dataset.rankingPeriod})));
+      root.querySelectorAll("[data-page]").forEach(b=>b.onclick=()=>navigate(forumPath({page:b.dataset.page})));
+      root.querySelectorAll("[data-open-post]").forEach(b=>b.onclick=()=>openPost(b.dataset.openPost));
+      root.querySelector("#compose-post").onclick = () => {
+        if (!session()) {navigate("/login?next=/forum");return;}
+        modal("分享今天的近况", `<form id="post-form"><p class="subtle">以你的校友卡姓名和届别发布</p><label class="field">想和同窗说些什么？<textarea name="content" rows="5" maxlength="500" required placeholder="分享近况、校园回忆，或想对同窗说的话…"></textarea></label>${imagePicker()}<p class="form-error" role="alert" tabindex="-1" hidden></p><button class="button primary full-width" type="submit">发布近况 ${icon("arrow")}</button></form>`);
+        const form = document.querySelector("#post-form");bindPicker(form);
+        const key = requestKey();
+        form.onsubmit = event => {event.preventDefault();busy(form,async()=>{
           const data = new FormData(form);
-          if (form.elements.image.files[0])
-            data.set(
-              "image",
-              await selectedImage(form),
-            );
-          else data.delete("image");
-          await api("/posts", {
-            method: "POST",
-            headers: { "Idempotency-Key": key },
-            body: data,
-          });
-          navigate("/forum");
-          toast("新帖子已发布，等一位同窗的回应。");
-        });
+          if (form.elements.image.files[0]) data.set("image",await selectedImage(form)); else data.delete("image");
+          await api("/posts",{method:"POST",headers:{"Idempotency-Key":key},body:data});
+          navigate("/forum");toast("近况已发布，等一位同窗的回应。");
+        });};
       };
-      root
-        .querySelectorAll("[data-page]")
-        .forEach(
-          (b) => (b.onclick = () => navigate(forumPath({page:b.dataset.page}))),
-        );
-      root
-        .querySelectorAll("[data-post-image]")
-        .forEach(
-          (b) =>
-            (b.onclick = () =>
-              modal(
-                "帖子配图",
-                `<img class="lightbox-image" src="${esc(b.dataset.postImage)}" alt="帖子配图"/>`,
-                "lightbox",
-              )),
-        );
-      root.querySelectorAll(".reply-toggle").forEach(
-        (b) =>
-          (b.onclick = async () => {
-            const box = root.querySelector(`#replies-${b.dataset.post}`);
-            if (!box.hidden) {
-              box.hidden = true;
-              b.setAttribute("aria-expanded", "false");
-              return;
-            }
-            box.hidden = false;
-            b.setAttribute("aria-expanded", "true");
-            box.innerHTML =
-              '<div class="subtle reply-loading">正在打开回复…</div>';
-            let replyPage = 1;
-            const load = async () => {
-              try {
-                const replies = await api(
-                  `/posts/${b.dataset.post}/replies?page=${replyPage}&page_size=20`,
-                );
-                box.innerHTML = `<div class="reply-list">${replies.items.map((r) => `<div class="reply-item">${avatar({ name: r.nickname }, "small")}<div><strong>${esc(r.nickname)}</strong><small>${dateLabel(r.created_at)}</small><p>${esc(r.content)}</p></div></div>`).join("") || '<p class="subtle">还没有回复，来说第一句话吧。</p>'}</div><div class="reply-pagination">${replyPage > 1 ? '<button class="text-link" data-reply-page="prev">← 上一页回复</button>' : ""}${replies.has_more ? '<button class="text-link" data-reply-page="next">下一页回复 →</button>' : ""}</div><form class="reply-form"><small>以当前校友卡姓名回复</small><textarea name="content" rows="2" required maxlength="500" placeholder="和这位同窗说句话…" aria-label="回复内容"></textarea><p class="form-error" role="alert" tabindex="-1" hidden></p><button type="submit" class="button primary">发送回复 ${icon("arrow")}</button></form>`;
-                const rf = box.querySelector("form");
-                const replyKey = requestKey();
-                rf.onsubmit = (e) => {
-                  e.preventDefault();
-                  if (!session()) { navigate("/login?next=/forum"); return; }
-                  busy(rf, async () => {
-                    const reply = await api(
-                      `/posts/${b.dataset.post}/replies`,
-                      {
-                        method: "POST",
-                        headers: { "Idempotency-Key": replyKey },
-                        body: JSON.stringify(
-                          Object.fromEntries(new FormData(rf)),
-                        ),
-                      },
-                    );
-                    b.querySelector("span").textContent =
-                      `回复（${reply.reply_count}）`;
-                    replyPage = Math.max(1, Math.ceil(reply.reply_count / 20));
-                    await load();
-                    toast("回复已送达");
-                  });
-                };
-                box.querySelectorAll("[data-reply-page]").forEach(
-                  (button) =>
-                    (button.onclick = () => {
-                      replyPage += button.dataset.replyPage === "next" ? 1 : -1;
-                      load();
-                    }),
-                );
-              } catch (err) {
-                box.innerHTML = `<p class="form-error">${esc(err.message)}</p><button class="button outline reply-retry">重试</button>`;
-                box.querySelector("button").onclick = load;
-              }
-            };
-            await load();
-          }),
-      );
+      const selected = Number(url.searchParams.get("post"));
+      if (Number.isSafeInteger(selected) && selected > 0) openPost(selected);
     },
   };
 }

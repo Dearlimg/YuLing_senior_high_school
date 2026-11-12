@@ -69,6 +69,7 @@ func (s *SQLStore) ListPosts(ctx context.Context, q ContentQuery) ([]model.Post,
 	rows := []model.Post{}
 	err := tx.Select("post.id, post.nickname, post.graduation_year, post.content, post.avatar_color, post.created_at, " +
 		"(LENGTH(post.image) > 0) AS has_image, " +
+		"(SELECT COUNT(*) FROM content_like WHERE kind = 'post' AND target_id = post.id) AS like_count, " +
 		"(SELECT COUNT(*) FROM reply WHERE reply.post_id = post.id AND reply.status = 'active') AS reply_count").
 		Order(order).Offset((q.Page - 1) * q.PageSize).Limit(q.PageSize).Find(&rows).Error
 	return rows, total, err

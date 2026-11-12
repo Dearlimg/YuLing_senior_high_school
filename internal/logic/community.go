@@ -132,6 +132,7 @@ type PostVO struct {
 	Content        string    `json:"content"`
 	ImageURL       string    `json:"image_url,omitempty"`
 	AvatarColor    string    `json:"avatar_color"`
+	LikeCount      int64     `json:"like_count"`
 	ReplyCount     int64     `json:"reply_count"`
 	CreatedAt      time.Time `json:"created_at"`
 }
@@ -176,7 +177,7 @@ func (l *CommunityLogic) Ranking(ctx context.Context, period string) (*PostResul
 func postResult(rows []model.Post, total int64) *PostResult {
 	items := make([]PostVO, 0, len(rows))
 	for _, r := range rows {
-		v := PostVO{ID: r.ID, Nickname: r.Nickname, GraduationYear: r.GraduationYear, Content: r.Content, AvatarColor: r.AvatarColor, ReplyCount: r.ReplyCount, CreatedAt: r.CreatedAt}
+		v := PostVO{ID: r.ID, Nickname: r.Nickname, GraduationYear: r.GraduationYear, Content: r.Content, AvatarColor: r.AvatarColor, LikeCount: r.LikeCount, ReplyCount: r.ReplyCount, CreatedAt: r.CreatedAt}
 		if r.HasImage {
 			v.ImageURL = fmt.Sprintf("/api/v1/posts/%d/image", r.ID)
 		}

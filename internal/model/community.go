@@ -33,6 +33,7 @@ type Post struct {
 	Status         string  `gorm:"type:varchar(16);not null;default:active;index"`
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	LikeCount      int64 `gorm:"->;-:migration"`
 	ReplyCount     int64 `gorm:"->;-:migration"`
 	HasImage       bool  `gorm:"->;-:migration"`
 }

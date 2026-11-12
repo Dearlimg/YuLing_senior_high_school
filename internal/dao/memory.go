@@ -13,6 +13,7 @@ import (
 
 // MemoryStore is an explicit, ephemeral demo/test store. Production never falls back to it.
 type MemoryStore struct {
+	likes    map[string]bool
 	users    map[uint64]model.User
 	sessions map[string]memorySession
 	mu       sync.Mutex
@@ -32,7 +33,7 @@ type rateWindow struct {
 
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		users: map[uint64]model.User{}, sessions: map[string]memorySession{},
+		likes: map[string]bool{}, users: map[uint64]model.User{}, sessions: map[string]memorySession{},
 		alumni: map[uint64]model.Alumni{}, photos: map[uint64]model.Photo{},
 		posts: map[uint64]model.Post{}, replies: map[uint64]model.Reply{},
 		audits: []model.AuditLog{}, keys: map[string]bool{}, rates: map[string]rateWindow{},
@@ -303,6 +304,7 @@ func (s *MemoryStore) ListPosts(_ context.Context, q ContentQuery) ([]model.Post
 		r.HasImage = len(r.Image) > 0
 		r.Image = nil
 		r.ReplyCount = s.replyCount(r.ID)
+		r.LikeCount = s.likesFor(model.ContentLike{Kind: "post", TargetID: r.ID}).Count
 		rows = append(rows, r)
 	}
 	slices.SortFunc(rows, func(a, b model.Post) int {

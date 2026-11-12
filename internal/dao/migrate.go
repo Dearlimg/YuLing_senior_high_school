@@ -9,7 +9,7 @@ import (
 // Migrate is an explicit operator action. Back up MySQL before schema synchronization.
 func (s *SQLStore) Migrate(ctx context.Context) error {
 	return s.db.WithContext(ctx).Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").
-		AutoMigrate(&model.Alumni{}, &model.User{}, &model.Photo{}, &model.Post{}, &model.Reply{}, &model.AuditLog{})
+		AutoMigrate(&model.Alumni{}, &model.User{}, &model.Photo{}, &model.Post{}, &model.Reply{}, &model.AuditLog{}, &model.ContentLike{})
 }
 
 // CheckSchema prevents serving the new application against the old skeleton schema.
@@ -23,6 +23,7 @@ func (s *SQLStore) CheckSchema(ctx context.Context) error {
 		{entity: &model.Photo{}, columns: "id, user_id, status, delete_code_hash"},
 		{entity: &model.Post{}, columns: "id, user_id, status"},
 		{entity: &model.Reply{}, columns: "id, user_id, post_id, status"},
+		{entity: &model.ContentLike{}, columns: "id, kind, target_id, user_id"},
 		{entity: &model.AuditLog{}, columns: "id, kind, target_id"},
 	}
 	for _, check := range checks {

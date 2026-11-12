@@ -172,7 +172,7 @@ func (s *CachedStore) ListPosts(ctx context.Context, q ContentQuery) ([]model.Po
 		rows, total, err := s.Store.ListPosts(ctx, q)
 		for i, row := range rows {
 			rows[i] = model.Post{ID: row.ID, Nickname: row.Nickname, Content: row.Content, GraduationYear: row.GraduationYear,
-				AvatarColor: row.AvatarColor, ReplyCount: row.ReplyCount, HasImage: row.HasImage, CreatedAt: row.CreatedAt}
+				AvatarColor: row.AvatarColor, LikeCount: row.LikeCount, ReplyCount: row.ReplyCount, HasImage: row.HasImage, CreatedAt: row.CreatedAt}
 		}
 		return cachedPage[model.Post]{Rows: rows, Total: total}, err
 	})

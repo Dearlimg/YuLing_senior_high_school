@@ -78,6 +78,8 @@ type Store interface {
 	Classes(context.Context, ListQuery) ([]ClassGroup, int64, error)
 	Universities(context.Context) ([]University, error)
 	Stats(context.Context) (Stats, error)
+	Likes(context.Context, model.ContentLike) (LikeState, error)
+	SetLike(context.Context, model.ContentLike, bool) (LikeState, error)
 	ListPhotos(context.Context, ContentQuery) ([]model.Photo, int64, error)
 	FindPhoto(context.Context, uint64) (*model.Photo, error)
 	CreatePhoto(context.Context, *model.Photo) error
