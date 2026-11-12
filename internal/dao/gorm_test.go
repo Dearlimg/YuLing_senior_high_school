@@ -122,6 +122,77 @@ func TestGORMReplyTransactionRejectsTargetOutsidePost(t *testing.T) {
 	}
 }
 
+func TestGORMModerationLocksAndSoftDeletesWithAudit(t *testing.T) {
+	for _, kind := range []string{"post", "photo"} {
+		t.Run(kind, func(t *testing.T) {
+			store, mock, queries := mockStore(t)
+			mock.ExpectBegin()
+			mock.ExpectQuery("SELECT").WithArgs(uint64(7), "deleted", 1).
+				WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(7))
+			mock.ExpectExec("UPDATE").WillReturnResult(sqlmock.NewResult(0, 1))
+			mock.ExpectExec("INSERT").WillReturnResult(sqlmock.NewResult(1, 1))
+			mock.ExpectCommit()
+			err := store.Moderate(context.Background(), model.AuditLog{Kind: kind, TargetID: 7, Action: "deleted", Reason: "test", ActorUserID: 3})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains((*queries)[0], "FOR UPDATE") || !strings.Contains((*queries)[1], "`status`=?") {
+				t.Fatalf("missing lock or status update: %+v", *queries)
+			}
+			if strings.HasPrefix((*queries)[1], "DELETE") {
+				t.Fatal("content physically deleted")
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestGORMRoleChangeRollsBackWhenAuditFails(t *testing.T) {
+	store, mock, _ := mockStore(t)
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT").WithArgs(uint64(2), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(2))
+	mock.ExpectExec("UPDATE").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT").WillReturnError(errors.New("audit unavailable"))
+	mock.ExpectRollback()
+	if err := store.SetUserAdmin(context.Background(), 2, true, model.AuditLog{Kind: "user", TargetID: 2, Action: "grant_admin"}); err == nil {
+		t.Fatal("role update committed without audit")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGORMLikesLockCorrectTargetAndReturnState(t *testing.T) {
+	for _, kind := range []string{"post", "photo"} {
+		t.Run(kind, func(t *testing.T) {
+			store, mock, queries := mockStore(t)
+			mock.ExpectBegin()
+			mock.ExpectQuery("SELECT").WithArgs(uint64(7), "active", 1).
+				WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(7))
+			mock.ExpectExec("INSERT").WithArgs(kind, uint64(7), uint64(2), sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(1, 1))
+			mock.ExpectQuery("SELECT count").WithArgs(kind, uint64(7)).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+			mock.ExpectQuery("SELECT count").WithArgs(kind, uint64(7), uint64(2)).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+			mock.ExpectCommit()
+			state, err := store.SetLike(context.Background(), model.ContentLike{Kind: kind, TargetID: 7, UserID: 2}, true)
+			if err != nil || state.Count != 1 || !state.Liked {
+				t.Fatalf("like: %+v %v", state, err)
+			}
+			if !strings.Contains((*queries)[0], "FROM `"+kind+"`") || !strings.Contains((*queries)[0], "FOR UPDATE") {
+				t.Fatal("wrong target lock")
+			}
+			if !strings.Contains((*queries)[1], "ON DUPLICATE KEY UPDATE") {
+				t.Fatal("like insert must be idempotent")
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestGORMCreateTranslatesDuplicateAndRollsBack(t *testing.T) {
 	store, mock, _ := mockStore(t)
 	mock.ExpectBegin()

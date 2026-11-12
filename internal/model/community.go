@@ -60,12 +60,13 @@ type Reply struct {
 func (Reply) TableName() string { return "reply" }
 
 type AuditLog struct {
-	ID        uint64 `gorm:"primaryKey"`
-	Kind      string `gorm:"type:varchar(16);not null"`
-	TargetID  uint64 `gorm:"not null;index"`
-	Action    string `gorm:"type:varchar(16);not null"`
-	Reason    string `gorm:"type:varchar(200);not null"`
-	CreatedAt time.Time
+	ActorUserID uint64 `gorm:"not null;default:0;index"`
+	ID          uint64 `gorm:"primaryKey"`
+	Kind        string `gorm:"type:varchar(16);not null"`
+	TargetID    uint64 `gorm:"not null;index"`
+	Action      string `gorm:"type:varchar(16);not null"`
+	Reason      string `gorm:"type:varchar(200);not null"`
+	CreatedAt   time.Time
 }
 
 func (AuditLog) TableName() string { return "audit_log" }

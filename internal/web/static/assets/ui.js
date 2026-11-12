@@ -48,12 +48,14 @@ export function toast(message) {
 }
 export function modal(title, body, cls = "") {
   const dialog = document.querySelector("#modal");
+  document.querySelector("#modal-content").detailTicket = null;
   document.querySelector("#modal-content").innerHTML =
     `<div class="modal-head"><h2 id="modal-title">${title}</h2><button class="icon-button" data-action="close-modal" aria-label="关闭">${icon("close")}</button></div>${body}`;
   dialog.className = cls;
   if (!dialog.open) dialog.showModal();
 }
 export function closeModal() {
+  document.querySelector("#modal-content").detailTicket = null;
   document.querySelector("#modal").close();
 }
 export function field(label, name, opts = {}) {

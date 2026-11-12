@@ -63,7 +63,8 @@ func Register(r *gin.Engine) {
 	r.NoRoute(func(c *gin.Context) {
 		path := c.Request.URL.Path
 		isPage := path == "/" || path == "/directory" || path == "/register" ||
-			path == "/universities" || path == "/moments" || path == "/forum" || path == "/privacy" || path == "/login" || path == "/me"
+			path == "/universities" || path == "/moments" || path == "/forum" || path == "/privacy" ||
+			path == "/login" || path == "/me" || path == "/admin"
 		if strings.HasPrefix(path, "/alumni/") && !strings.Contains(path, ".") {
 			isPage = true
 		}

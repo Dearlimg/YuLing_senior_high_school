@@ -52,12 +52,15 @@ type AuthResult struct {
 }
 
 type MeResult struct {
+	UserID  uint64  `json:"user_id"`
+	IsAdmin bool    `json:"is_admin"`
 	Account string  `json:"account"`
 	Profile OwnerVO `json:"profile"`
 }
 
 // Actor is populated from the Redis session and current database card, never request fields.
 type Actor struct {
+	IsAdmin bool
 	UserID  uint64
 	Account string
 	Card    model.Alumni
@@ -178,7 +181,7 @@ func (l *AuthLogic) Authenticate(ctx context.Context, token string) (*Actor, err
 	if err != nil {
 		return nil, err
 	}
-	return &Actor{UserID: user.ID, Account: user.Account, Card: *card}, nil
+	return &Actor{IsAdmin: user.IsAdmin, UserID: user.ID, Account: user.Account, Card: *card}, nil
 }
 
 func (l *AuthLogic) Logout(ctx context.Context, token string) error {
@@ -190,7 +193,7 @@ func (l *AuthLogic) Me(ctx context.Context) (*MeResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &MeResult{Account: actor.Account, Profile: ownerVO(actor.Card)}, nil
+	return &MeResult{UserID: actor.UserID, IsAdmin: actor.IsAdmin, Account: actor.Account, Profile: ownerVO(actor.Card)}, nil
 }
 
 func ownerVO(card model.Alumni) OwnerVO {

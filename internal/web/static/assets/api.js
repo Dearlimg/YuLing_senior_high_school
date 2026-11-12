@@ -31,7 +31,7 @@ export async function api(path, options = {}) {
   try {
     const headers = new Headers(options.headers || {});
     const token = session()?.token;
-    if (token) headers.set("Authorization", `Bearer ${token}`);
+    if (token && !headers.has("Authorization")) headers.set("Authorization", `Bearer ${token}`);
     if (options.body && !(options.body instanceof FormData))
       headers.set("Content-Type", "application/json");
     const response = await fetch(`/api/v1${path}`, {
@@ -40,7 +40,7 @@ export async function api(path, options = {}) {
       signal: options.signal || controller.signal,
     });
     const body = await response.json().catch(() => ({}));
-    if (response.status === 401 && session()?.token === token) saveSession(null);
+    if (response.status === 401 && headers.get("Authorization") === `Bearer ${token}` && session()?.token === token) saveSession(null);
     if (!response.ok || body.code !== 0)
       throw new APIError(
         body.msg || "服务暂时不可用，请稍后重试",

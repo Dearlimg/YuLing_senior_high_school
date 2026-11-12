@@ -76,3 +76,22 @@ dialog.content-dialog { width: min(1100px, calc(100vw - 48px)); max-width: none;
 .reply-to-comment { font-size: 11px; margin-left: 12px; }
 
 .photo-card-info .photo-interactions { justify-content: flex-start; gap: 22px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+
+.account-actions, .admin-tabs, .admin-filters, .admin-row-actions { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+.admin-tabs { border-bottom:1px solid var(--line); padding-bottom:20px; margin-bottom:24px; }
+.admin-filters { justify-content:space-between; }
+.admin-filters select { padding:8px 12px; border:1px solid var(--line); border-radius:8px; background:white; font:inherit; }
+.admin-rows { display:grid; gap:12px; }
+.admin-row { display:flex; gap:20px; align-items:center; justify-content:space-between; background:white; padding:22px 24px; border:1px solid var(--line); border-radius:12px; }
+.admin-row > div:first-child { min-width:0; flex:1; }
+.admin-row p { font-size:13px; color:#696b66; line-height:1.8; margin:8px 0; overflow-wrap:anywhere; }
+.admin-row small { color:var(--muted); font-size:11px; }
+.admin-status { margin-left:12px; border-radius:6px; padding:3px 8px; background:#f0ede6; font-size:11px; color:#75664f; }
+.admin-status.deleted { color:#a32e43; background:#f9e8ed; }
+.admin-summary { white-space:pre-wrap; overflow-wrap:anywhere; }
+.button.danger { background:#a23247; border-color:#a23247; color:white; }
+.admin-gate { max-width:760px; }
+.bootstrap-gate { margin-top:24px; border-top:1px solid var(--line); padding-top:20px; }
+.bootstrap-gate summary { cursor:pointer; font-size:13px; color:var(--wine); }
+.bootstrap-gate form { margin-top:20px; }
+@media(max-width:600px) { .admin-row { align-items:flex-start; flex-direction:column; padding:18px; } .account-actions { gap:8px; } .admin-tabs { gap:8px; } .admin-row-actions .button { padding:8px 12px; } }

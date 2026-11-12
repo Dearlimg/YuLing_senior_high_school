@@ -20,6 +20,7 @@ type CommunityLogic struct{ store dao.Store }
 func NewCommunityLogic(store dao.Store) *CommunityLogic { return &CommunityLogic{store: store} }
 
 type ContentRequest struct {
+	Status   string `form:"status"`
 	Page     int    `form:"page"`
 	PageSize int    `form:"page_size"`
 	Category string `form:"category"`
@@ -63,7 +64,8 @@ func (l *CommunityLogic) Photos(ctx context.Context, req ContentRequest) (*Photo
 	items := make([]PhotoVO, 0, len(rows))
 	for _, r := range rows {
 		items = append(items, PhotoVO{
-			LikeCount: r.LikeCount, ReplyCount: r.ReplyCount, ID: r.ID, Caption: r.Caption, Uploader: r.Uploader, Category: r.Category,
+			LikeCount: r.LikeCount, ReplyCount: r.ReplyCount, ID: r.ID,
+			Caption: r.Caption, Uploader: r.Uploader, Category: r.Category,
 			ImageURL: fmt.Sprintf("/api/v1/photos/%d/image", r.ID), CreatedAt: r.CreatedAt,
 		})
 	}
@@ -159,7 +161,9 @@ func (l *CommunityLogic) Posts(ctx context.Context, req ContentRequest) (*PostRe
 		return nil, invalid("排序方式不正确")
 	}
 	page, size := pagination(req.Page, req.PageSize)
-	rows, total, err := l.store.ListPosts(ctx, dao.ContentQuery{Page: page, PageSize: size, Keyword: strings.TrimSpace(req.Keyword), Sort: req.Sort})
+	rows, total, err := l.store.ListPosts(ctx, dao.ContentQuery{
+		Page: page, PageSize: size, Keyword: strings.TrimSpace(req.Keyword), Sort: req.Sort,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +183,10 @@ func (l *CommunityLogic) Ranking(ctx context.Context, period string) (*PostResul
 func postResult(rows []model.Post, total int64) *PostResult {
 	items := make([]PostVO, 0, len(rows))
 	for _, r := range rows {
-		v := PostVO{ID: r.ID, Nickname: r.Nickname, GraduationYear: r.GraduationYear, Content: r.Content, AvatarColor: r.AvatarColor, LikeCount: r.LikeCount, ReplyCount: r.ReplyCount, CreatedAt: r.CreatedAt}
+		v := PostVO{
+			ID: r.ID, Nickname: r.Nickname, GraduationYear: r.GraduationYear, Content: r.Content,
+			AvatarColor: r.AvatarColor, LikeCount: r.LikeCount, ReplyCount: r.ReplyCount, CreatedAt: r.CreatedAt,
+		}
 		if r.HasImage {
 			v.ImageURL = fmt.Sprintf("/api/v1/posts/%d/image", r.ID)
 		}
@@ -258,7 +265,12 @@ func (l *CommunityLogic) Replies(ctx context.Context, id uint64, req ContentRequ
 func (l *CommunityLogic) PhotoReplies(ctx context.Context, id uint64, req ContentRequest) (*ReplyResult, error) {
 	return l.contentReplies(ctx, "photo", id, req)
 }
-func (l *CommunityLogic) contentReplies(ctx context.Context, kind string, id uint64, req ContentRequest) (*ReplyResult, error) {
+func (l *CommunityLogic) contentReplies(
+	ctx context.Context,
+	kind string,
+	id uint64,
+	req ContentRequest,
+) (*ReplyResult, error) {
 	if err := l.findContent(ctx, kind, id); err != nil {
 		return nil, businessError(err)
 	}
@@ -273,7 +285,10 @@ func (l *CommunityLogic) contentReplies(ctx context.Context, kind string, id uin
 	}
 	items := make([]ReplyVO, 0, len(rows))
 	for _, r := range rows {
-		items = append(items, ReplyVO{ParentID: r.ParentID, ParentNickname: r.ParentNickname, ID: r.ID, Nickname: r.Nickname, Content: r.Content, CreatedAt: r.CreatedAt})
+		items = append(items, ReplyVO{
+			ParentID: r.ParentID, ParentNickname: r.ParentNickname, ID: r.ID,
+			Nickname: r.Nickname, Content: r.Content, CreatedAt: r.CreatedAt,
+		})
 	}
 	return &ReplyResult{Items: items, Total: total, HasMore: int64(page*size) < total}, nil
 }
@@ -284,7 +299,13 @@ func (l *CommunityLogic) Reply(ctx context.Context, id uint64, req ReplyRequest,
 func (l *CommunityLogic) PhotoReply(ctx context.Context, id uint64, req ReplyRequest, key string) (int64, error) {
 	return l.contentReply(ctx, "photo", id, req, key)
 }
-func (l *CommunityLogic) contentReply(ctx context.Context, kind string, id uint64, req ReplyRequest, key string) (int64, error) {
+func (l *CommunityLogic) contentReply(
+	ctx context.Context,
+	kind string,
+	id uint64,
+	req ReplyRequest,
+	key string,
+) (int64, error) {
 	actor, err := CurrentActor(ctx)
 	if err != nil {
 		return 0, err
@@ -296,11 +317,15 @@ func (l *CommunityLogic) contentReply(ctx context.Context, kind string, id uint6
 	if err := validateText("回复", content, 500, true); err != nil {
 		return 0, err
 	}
-	row := &model.Reply{UserID: actor.UserID, PostID: id, ParentID: req.ParentID, Nickname: nickname, Content: content, Status: "active", CreateKey: actorCreateKey(actor.UserID, key, struct {
+	payload := struct {
 		PostID uint64
 		Kind   string
 		ReplyRequest
-	}{PostID: id, Kind: kind, ReplyRequest: req})}
+	}{PostID: id, Kind: kind, ReplyRequest: req}
+	row := &model.Reply{
+		UserID: actor.UserID, PostID: id, ParentID: req.ParentID, Nickname: nickname, Content: content,
+		Status: "active", CreateKey: actorCreateKey(actor.UserID, key, payload),
+	}
 	if kind == "photo" {
 		row.PostID, row.PhotoID = 0, id
 	}
@@ -314,25 +339,36 @@ type ModerationRequest struct {
 }
 
 func (l *CommunityLogic) Moderate(ctx context.Context, kind string, id uint64, req ModerationRequest) error {
+	if err := requireAdministrator(ctx); err != nil {
+		return err
+	}
 	if !slicesContain([]string{"alumni", "photo", "post", "reply"}, kind) {
 		return invalid("管理对象不正确")
 	}
-	if req.Action != "active" && req.Action != "hidden" {
-		return invalid("操作只能为 active 或 hidden")
+	validAction := req.Action == "active" || req.Action == "hidden"
+	canDelete := req.Action == "deleted" && (kind == "post" || kind == "photo")
+	if !validAction && !canDelete {
+		return invalid("操作只能为 active、hidden，帖子或照片还支持 deleted")
 	}
 	reason := strings.TrimSpace(req.Reason)
 	if err := validateText("操作原因", reason, 200, true); err != nil {
 		return err
 	}
-	return businessError(l.store.Moderate(ctx, model.AuditLog{Kind: kind, TargetID: id, Action: req.Action, Reason: reason}))
+	return businessError(l.store.Moderate(ctx, adminAudit(ctx, kind, id, req.Action, reason)))
 }
 
 func (l *CommunityLogic) AuditLogs(ctx context.Context, req ContentRequest) ([]model.AuditLog, error) {
+	if err := requireAdministrator(ctx); err != nil {
+		return nil, err
+	}
 	page, size := pagination(req.Page, req.PageSize)
 	return l.store.AuditLogs(ctx, dao.ContentQuery{Page: page, PageSize: size})
 }
 
 func (l *CommunityLogic) Inspect(ctx context.Context, kind string, id uint64) (*dao.ModerationItem, error) {
+	if err := requireAdministrator(ctx); err != nil {
+		return nil, err
+	}
 	item, err := l.store.Inspect(ctx, kind, id)
 	return item, businessError(err)
 }

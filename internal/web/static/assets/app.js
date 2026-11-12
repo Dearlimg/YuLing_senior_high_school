@@ -2,6 +2,7 @@ import { api, session } from "./api.js";
 import { loading, errorState, closeModal } from "./ui.js";
 import { home, directory, universities } from "./pages-discover.js";
 import { register, profile, privacy, login, personal } from "./pages-profile.js";
+import { admin } from "./pages-admin.js";
 import { moments, forum } from "./pages-community.js";
 
 const main = document.querySelector("#main");
@@ -79,6 +80,7 @@ export async function render(restore = false) {
     "/privacy": "隐私与公开说明",
     "/login": "登录",
     "/me": "个人中心",
+    "/admin": "社区管理",
   };
   document.title = `${titles[location.pathname] || "电子校友卡"} · 陕西省榆林中学`;
   const page =
@@ -92,6 +94,7 @@ export async function render(restore = false) {
       "/privacy": privacy,
       "/login": login,
       "/me": personal,
+      "/admin": admin,
     }[location.pathname] ||
     (location.pathname.startsWith("/alumni/") ? profile : null);
   try {

@@ -41,7 +41,7 @@
 | GET | `/posts/:id/image` | 有效帖子配图 |
 | GET/POST | `/posts/:id/replies` | 分页正序回复；登录 POST JSON `content`，署名从校友卡获取 |
 | GET | `/admin/:kind/:id` | 管理员按 ID 查询，包括下架内容；仅返回管理摘要 |
-| PUT | `/admin/:kind/:id` | `kind=alumni/photo/post/reply`；JSON `action=hidden/active`、必填 `reason` |
+| PUT | `/admin/:kind/:id` | `kind=alumni/photo/post/reply`；JSON `action=hidden/active/deleted`（deleted 仅限照片和帖子）、必填 `reason` |
 | GET | `/admin/audit` | 分页审计记录 |
 
 分页默认 20，每页上限 100。班级名 `__unassigned__` 表示未填写班级。创建接口支持 `Idempotency-Key`，
@@ -49,7 +49,7 @@
 
 ## 数据与权限
 
-- `app_user`、`alumni`、`photo`、`post`、`reply`、`audit_log` 均由 GORM 模型及显式迁移命令管理。原有资料保留。
+- `app_user`、`alumni`、`photo`、`post`、`reply`、`audit_log`、`content_like` 均由 GORM 模型及显式迁移命令管理。原有资料保留。
 - 在读生仅保存理想大学；实际大学聚合只选择 `identity=alumni`。切换身份是本人明确的编辑动作。
 - 常见学校别名与全半角/空白标准化在写入前完成；榜单与大学反查使用同一标准名。
 - 密码保存 bcrypt 哈希，随机 Bearer Token 的 SHA-256 哈希在 Redis 保存 7 天，退出立即撤销。
@@ -61,7 +61,7 @@
 - 上传图片上限 2MB，原图可在浏览器瘦身（最多 25MB / 4000 万像素）；服务端限制解码为 1600 万像素及并发，避免压缩炸弹。
 - 普通写操作默认同 IP/路由 10 分钟 20 次；登录/注册与编辑码验证每分钟 10 次，Redis 不可用时拒绝写入。
 - `TRUSTED_PROXIES` 只填写真实代理 IP/CIDR，默认不信任伪造转发头。正式部署应配置入口代理，否则所有请求可能按代理 IP 限流。
-- `ADMIN_TOKEN` 至少 32 字符，从 Secret 注入，所有管理接口使用 `Authorization: Bearer <token>`；留空时禁用。
+- `ADMIN_TOKEN` 至少 32 字符，从 Secret 注入，管理接口接受已授权管理员的登录会话或 `Authorization: Bearer <ADMIN_TOKEN>`。已有管理员账号不依赖管理 Token；首次授权需配置该 Token。
 - GORM 日志不输出绑定参数，HTTP 不记录请求体。公开列表在服务端 Redis 缓存 60～80 秒，写成功更换版本；账号/本人数据/图片不缓存，HTTP API 禁止浏览器缓存。模块和 CSS 使用内容版本路径，发布后自动更新缓存。
 
 ## 运行与部署
@@ -109,3 +109,22 @@ sqlmock 验证真实 GORM 生成的语句与事务编排，但不替代 MySQL �
 `GET/PUT /api/v1/photos/:id/likes` 读取/设置本人点赞状态，格式与帖子相同。
 `/moments?photo=编号` 支持直接打开照片。帖子与照片使用独立的互动目标，禁止跨目标回复。
 上线前迁移 `reply.photo_id`；照片软删除后，图片、详情、评论和点赞均不可访问。
+
+
+## 用户管理员与内容软删除
+
+管理页面 `/admin` 包含用户权限、内容管理、操作审计；已授权账号可从个人中心进入。
+管理 Token 仅用于首次授权或应急管理，前端只保留在模块内存中，刷新后重新输入。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/v1/admin/users` | 按账号或姓名 `keyword` 搜索，分页；仅返回 ID、账号、校友卡编号、姓名、角色与创建时间 |
+| PUT | `/api/v1/admin/users/:id/role` | `{ "is_admin": true/false, "reason": "原因" }`；管理员不可撤销自己 |
+| GET | `/api/v1/admin/content/:kind` | `post/photo/reply/alumni`；支持 `keyword/status/page/page_size`，包括下架及软删除摘要 |
+| DELETE | `/api/v1/admin/:kind/:id` | `post/photo`，JSON 必填 `reason`；写入 `deleted` 状态，不删除数据库记录 |
+| GET | `/api/v1/me` | 增加本人 `user_id/is_admin`，每次从数据库读取角色 |
+
+内容状态变更与审计在同一事务提交；锁定父内容，与点赞及评论写入串行。
+所有角色变更及管理操作记录原因与操作人 User ID，0 表示管理 Token 或历史操作。
+已软删除的帖子/照片仍能在管理页面查询，原始图片、正文及互动保留，但不能通过普通审核恢复。
+下架（hidden）适用于希望后续恢复公开的内容。上线前必须迁移 `is_admin` 和 `actor_user_id`。

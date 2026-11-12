@@ -426,7 +426,7 @@ func (s *MemoryStore) Moderate(_ context.Context, audit model.AuditLog) error {
 		s.photos[r.ID] = r
 	case "post":
 		r, ok := s.posts[audit.TargetID]
-		if !ok {
+		if !ok || r.Status == "deleted" {
 			return ErrNotFound
 		}
 		r.Status = audit.Action

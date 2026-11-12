@@ -72,5 +72,7 @@ func (l *CommunityLogic) Photo(ctx context.Context, id uint64) (*PhotoVO, error)
 		return nil, err
 	}
 	return &PhotoVO{ID: row.ID, Caption: row.Caption, Uploader: row.Uploader, Category: row.Category,
-		CreatedAt: row.CreatedAt, ImageURL: fmt.Sprintf("/api/v1/photos/%d/image", id), LikeCount: state.Count, ReplyCount: count}, nil
+		CreatedAt: row.CreatedAt, ImageURL: fmt.Sprintf("/api/v1/photos/%d/image", id),
+		LikeCount: state.Count, ReplyCount: count,
+	}, nil
 }

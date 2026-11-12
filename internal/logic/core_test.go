@@ -234,5 +234,5 @@ func TestImageValidation(t *testing.T) {
 }
 
 func testActorContext() context.Context {
-	return WithActor(context.Background(), &Actor{UserID: 1, Card: model.Alumni{ID: 1, Name: "测试校友", GraduationYear: 2018, AvatarColor: "blue"}})
+	return WithActor(context.Background(), &Actor{IsAdmin: true, UserID: 1, Card: model.Alumni{ID: 1, Name: "测试校友", GraduationYear: 2018, AvatarColor: "blue"}})
 }

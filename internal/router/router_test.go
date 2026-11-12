@@ -19,12 +19,14 @@ import (
 	"YuLing_senior_high_school/internal/logic"
 )
 
-func testEngine() *gin.Engine {
+func testEngine() *gin.Engine { return testEngineWithAdmin("") }
+
+func testEngineWithAdmin(adminToken string) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	store := dao.NewMemoryStore()
 	auth := logic.NewAuthLogic(store, store)
 	return New(Deps{
-		Config:    &conf.Config{App: conf.App{Env: "test", DemoMode: true}},
+		Config:    &conf.Config{App: conf.App{Env: "test", DemoMode: true, AdminToken: adminToken}},
 		Health:    controller.NewHealthController(nil, nil),
 		Alumni:    controller.NewAlumniController(logic.NewAlumniLogic(store)),
 		Community: controller.NewCommunityController(logic.NewCommunityLogic(store)),

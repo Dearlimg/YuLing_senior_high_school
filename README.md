@@ -98,7 +98,7 @@ go run ./cmd/server
 | `SHUTDOWN_TIMEOUT` | ConfigMap | `15s` | 优雅退出等待上限 |
 | `DEMO_MODE` | ConfigMap | `false` | 本地演示数据；生产环境禁止开启 |
 | `TRUSTED_PROXIES` | ConfigMap | 空 | 实际入口代理 IP/CIDR，逗号分隔；默认不信任转发头 |
-| `ADMIN_TOKEN` | **Secret** | 空 | 至少 32 字符，管理接口 Bearer Token；留空关闭 |
+| `ADMIN_TOKEN` | **Secret** | 空 | 至少 32 字符，用于首次授权/应急管理；已有管理员账号不依赖此 Token |
 | `MYSQL_HOST` | ConfigMap | `127.0.0.1` | 集群内用 `mysql.infra.svc.cluster.local` |
 | `MYSQL_PORT` | ConfigMap | `3306` | |
 | `MYSQL_DATABASE` | ConfigMap | `yulin` | |
@@ -357,3 +357,21 @@ kubectl logs deploy/yulin-server -n apps --since=30m | jq 'select(.request_id ==
 ```
 
 日志保留与轮转由现有容器日志采集配置负责，应用不依赖可写日志目录。
+
+
+## 社区互动与管理员（2026-11-12）
+
+帖子使用瀑布流卡片，点击打开图文详情，可评论、回复任意评论、点赞及取消点赞。
+照片详情支持相同互动。`/forum?post=编号`、`/moments?photo=编号` 可直接打开详情。
+
+管理员登录后从个人中心进入 `/admin`，可以搜索账号并授予/撤销管理员，按关键词及状态查找
+帖子和照片、下架/恢复公开或软删除，并查看操作审计。软删除保留数据库原始记录，所有公开入口失效。
+已软删除内容不通过普通审核恢复；如只需暂时撤下，请使用“下架”。
+
+首次授权：配置 `ADMIN_TOKEN` 后访问 `/admin`，展开“使用管理 Token 首次授权”，
+搜索目标账号并设为管理员。随后该用户正常登录即可管理社区；管理 Token 不写入浏览器存储。
+权限逐次请求查库，撤权立即对后续请求生效；管理员不能撤销自己的权限。
+
+**发布新版本前，先备份数据库并执行 `go run ./cmd/migrate`（容器为 `server migrate`）**，
+新增 `content_like` 表、`reply.parent_id` / `reply.photo_id`、`app_user.is_admin` 与审计操作人字段。
+历史账号默认为普通用户，历史评论仍属于原帖子。新服务会检查新表与字段，缺失时拒绝启动。

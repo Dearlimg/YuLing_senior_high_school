@@ -23,7 +23,8 @@ func (s *SQLStore) ListPhotos(ctx context.Context, q ContentQuery) ([]model.Phot
 	rows := []model.Photo{}
 	err := tx.Select("photo.id, photo.caption, photo.uploader, photo.category, photo.created_at, " +
 		"(SELECT COUNT(*) FROM content_like WHERE kind = 'photo' AND target_id = photo.id) AS like_count, " +
-		"(SELECT COUNT(*) FROM reply WHERE reply.photo_id = photo.id AND reply.status = 'active') AS reply_count").Order("id DESC").
+		"(SELECT COUNT(*) FROM reply WHERE reply.photo_id = photo.id " +
+		"AND reply.status = 'active') AS reply_count").Order("id DESC").
 		Offset((q.Page - 1) * q.PageSize).Limit(q.PageSize).Find(&rows).Error
 	return rows, total, err
 }
@@ -95,7 +96,12 @@ func (s *SQLStore) ListPhotoReplies(ctx context.Context, id uint64, q ContentQue
 	return s.listContentReplies(ctx, "photo", id, q)
 }
 
-func (s *SQLStore) listContentReplies(ctx context.Context, kind string, id uint64, q ContentQuery) ([]model.Reply, int64, error) {
+func (s *SQLStore) listContentReplies(
+	ctx context.Context,
+	kind string,
+	id uint64,
+	q ContentQuery,
+) ([]model.Reply, int64, error) {
 	if contentEntity(kind) == nil {
 		return nil, 0, ErrNotFound
 	}
@@ -108,7 +114,8 @@ func (s *SQLStore) listContentReplies(ctx context.Context, kind string, id uint6
 		return nil, 0, err
 	}
 	rows := []model.Reply{}
-	err := tx.Select("reply.id, reply.post_id, reply.photo_id, reply.parent_id, target.nickname AS parent_nickname, reply.nickname, reply.content, reply.created_at").
+	err := tx.Select("reply.id, reply.post_id, reply.photo_id, reply.parent_id, " +
+		"target.nickname AS parent_nickname, reply.nickname, reply.content, reply.created_at").
 		Order("reply.id ASC").Offset((q.Page - 1) * q.PageSize).Limit(q.PageSize).Find(&rows).Error
 	return rows, total, err
 }
@@ -144,24 +151,25 @@ func (s *SQLStore) CreateReply(ctx context.Context, row *model.Reply) (int64, er
 }
 
 func (s *SQLStore) Moderate(ctx context.Context, audit model.AuditLog) error {
-	entities := map[string]any{"alumni": &model.Alumni{}, "photo": &model.Photo{}, "post": &model.Post{}, "reply": &model.Reply{}}
+	entities := map[string]any{
+		"alumni": &model.Alumni{}, "photo": &model.Photo{},
+		"post": &model.Post{}, "reply": &model.Reply{},
+	}
 	entity, ok := entities[audit.Kind]
 	if !ok {
 		return ErrNotFound
 	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		query := tx.Model(entity).Where("id = ?", audit.TargetID)
-		if audit.Kind == "photo" {
+		if audit.Kind == "photo" || audit.Kind == "post" {
 			query = query.Where("status <> ?", "deleted")
 		}
-		var found int64
-		if err := query.Count(&found).Error; err != nil {
-			return err
+		// Lock the same parent row as likes and replies before changing visibility.
+		var found struct{ ID uint64 }
+		if err := query.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").Take(&found).Error; err != nil {
+			return recordError(err)
 		}
-		if found == 0 {
-			return ErrNotFound
-		}
-		if err := query.Update("status", audit.Action).Error; err != nil {
+		if err := query.Select("status", "updated_at").Update("status", audit.Action).Error; err != nil {
 			return err
 		}
 		return tx.Create(&audit).Error

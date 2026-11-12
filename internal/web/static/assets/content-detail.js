@@ -38,6 +38,7 @@ async function openContent(kind,id) {
     };
     target.querySelector("button").onclick = () => selectReply(0);
     const load = async (reset = false, startPage = 1) => {
+      if (host.detailTicket !== ticket) return;
       more.disabled = true;
       const error = host.querySelector(".comment-error");
       error.hidden = true;
@@ -71,6 +72,7 @@ async function openContent(kind,id) {
     const like = host.querySelector(".like-button");
     let liked = false;
     const paint = state => {
+      if (host.detailTicket !== ticket) return;
       liked = state.liked; like.setAttribute("aria-pressed", String(liked));
       like.setAttribute("aria-label", liked ? "取消点赞" : "点赞");
       like.querySelector("span").textContent = state.like_count;
@@ -85,6 +87,9 @@ async function openContent(kind,id) {
       finally { like.disabled = false; }
     };
     if (session()) api(`${path}/likes`).then(paint).catch(err => toast(err.message)).finally(() => {like.disabled = false;});
+    if (session()) api("/me").then(me => {
+      if (me.is_admin && host.detailTicket === ticket) host.querySelector(".detail-actions").insertAdjacentHTML("beforeend", `<a class="text-link detail-admin-link" href="/admin?view=content&kind=${kind}&target=${id}">管理此${kind === "photo" ? "照片" : "帖子"}</a>`);
+    }).catch(()=>{});
     await load();
   } catch (err) {
     if (host.detailTicket === ticket) {

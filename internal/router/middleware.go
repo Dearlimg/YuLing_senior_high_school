@@ -80,21 +80,45 @@ func writeGuard(limiter dao.Limiter) gin.HandlerFunc {
 	}
 }
 
-func adminGuard(token string) gin.HandlerFunc {
+func adminGuard(token string, auth *logic.AuthLogic) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if token == "" {
-			resp.Fail(c, 503, 50302, "管理功能尚未配置")
+		provided := strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer ")
+		if token != "" && provided != "" {
+			a, b := sha256.Sum256([]byte(token)), sha256.Sum256([]byte(provided))
+			if subtle.ConstantTimeCompare(a[:], b[:]) == 1 {
+				c.Set("admin", true)
+				c.Request = c.Request.WithContext(logic.WithAdministrator(c.Request.Context()))
+				c.Next()
+				return
+			}
+		}
+		if provided == "" {
+			if token == "" {
+				resp.Fail(c, 503, 50302, "请使用已授权的管理员账号登录，首次授权需配置管理 Token")
+			} else {
+				resp.Fail(c, 401, 40101, "请先登录管理员账号")
+			}
 			c.Abort()
 			return
 		}
-		provided := strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer ")
-		a, b := sha256.Sum256([]byte(token)), sha256.Sum256([]byte(provided))
-		if subtle.ConstantTimeCompare(a[:], b[:]) != 1 {
-			resp.Fail(c, 401, 40101, "需要管理员凭据")
+		actor, err := auth.Authenticate(c.Request.Context(), provided)
+		if err != nil {
+			if errors.Is(err, logic.ErrUnauthorized) {
+				resp.Fail(c, 401, 40102, "管理员登录已过期")
+			} else {
+				resp.Fail(c, 503, 50301, "权限验证暂时不可用")
+			}
+			c.Abort()
+			return
+		}
+		if !actor.IsAdmin {
+			resp.Fail(c, 403, 40301, "需要管理员权限")
 			c.Abort()
 			return
 		}
 		c.Set("admin", true)
+		c.Set("user_id", actor.UserID)
+		c.Request = c.Request.WithContext(logic.WithActor(c.Request.Context(), actor))
 		c.Next()
 	}
 }

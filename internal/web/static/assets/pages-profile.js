@@ -211,7 +211,7 @@ export async function personal(url) {
   catch (error) { if (error.status === 401) return login(new URL("/login?next=/me", location.origin)); throw error; }
   const result = await register(url, me.profile);
   return {
-    html: `<div class="wrap account-bar"><div><strong>个人中心</strong><span>当前账号：${esc(me.account)}</span></div><button class="button outline" id="logout">退出登录</button></div>${result.html}`,
+    html: `<div class="wrap account-bar"><div><strong>个人中心</strong><span>当前账号：${esc(me.account)}</span></div><div class="account-actions">${me.is_admin ? '<a class="button primary" href="/admin">社区管理</a>' : ""}<button class="button outline" id="logout">退出登录</button></div></div>${result.html}`,
     bind(root) {
       result.bind(root);
       root.querySelector("#logout").onclick = async () => {

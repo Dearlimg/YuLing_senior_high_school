@@ -48,6 +48,7 @@ type Stats struct {
 }
 
 type ContentQuery struct {
+	Status   string
 	Keyword  string
 	Sort     string
 	Since    time.Time
@@ -66,6 +67,9 @@ type ModerationItem struct {
 
 // Store keeps persistence details out of the business layer.
 type Store interface {
+	ListUsers(context.Context, ContentQuery) ([]AdminUser, int64, error)
+	SetUserAdmin(context.Context, uint64, bool, model.AuditLog) error
+	ListModeration(context.Context, string, ContentQuery) ([]ModerationItem, int64, error)
 	FindUser(context.Context, string) (*model.User, error)
 	FindUserByID(context.Context, uint64) (*model.User, error)
 	FindUserByAlumni(context.Context, uint64) (*model.User, error)
