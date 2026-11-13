@@ -16,6 +16,7 @@
 
 - [开发排期与里程碑](docs/development-plan.md)
 - [页面、接口与运行验收说明](docs/core-web.md)
+- [免账号领卡、海报与同班传播](docs/growth.md)
 - [校园摄影与视觉素材来源](docs/assets.md)
 
 ### 先预览前端（Windows PowerShell）

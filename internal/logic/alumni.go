@@ -68,9 +68,11 @@ type AlumniVO struct {
 
 type OwnerVO struct {
 	AlumniVO
-	Phone  string `json:"phone"`
-	Wechat string `json:"wechat"`
-	Email  string `json:"email"`
+	PhonePublic  bool   `json:"phone_public"`
+	WechatPublic bool   `json:"wechat_public"`
+	Phone        string `json:"phone"`
+	Wechat       string `json:"wechat"`
+	Email        string `json:"email"`
 }
 
 type ListResult struct {
@@ -128,6 +130,8 @@ type CreateRequest struct {
 	Message         string `json:"message"`
 	AvatarColor     string `json:"avatar_color"`
 	ContactPublic   bool   `json:"contact_public"`
+	PhonePublic     bool   `json:"phone_public"`
+	WechatPublic    bool   `json:"wechat_public"`
 	EditCode        string `json:"edit_code"`
 }
 
@@ -161,7 +165,8 @@ func (l *AlumniLogic) Unlock(ctx context.Context, id uint64, code string) (*Owne
 	if !matchesSecret(code, row.EditCodeHash) {
 		return nil, ErrForbidden
 	}
-	return &OwnerVO{AlumniVO: toVO(*row), Phone: row.Phone, Wechat: row.Wechat, Email: row.Email}, nil
+	owner := ownerVO(*row)
+	return &owner, nil
 }
 
 func (l *AlumniLogic) Update(ctx context.Context, id uint64, req CreateRequest) (*CreateResult, error) {
@@ -241,7 +246,9 @@ func validateAlumni(req CreateRequest) (*model.Alumni, error) {
 		Email:           strings.TrimSpace(req.Email),
 		Message:         strings.TrimSpace(req.Message),
 		AvatarColor:     req.AvatarColor,
-		ContactPublic:   req.ContactPublic,
+		ContactPublic:   req.ContactPublic || req.PhonePublic || req.WechatPublic,
+		PhonePublic:     req.PhonePublic,
+		WechatPublic:    req.WechatPublic,
 		Status:          "active",
 	}
 	if row.Identity == "" {

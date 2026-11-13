@@ -197,7 +197,8 @@ func (l *AuthLogic) Me(ctx context.Context) (*MeResult, error) {
 }
 
 func ownerVO(card model.Alumni) OwnerVO {
-	return OwnerVO{AlumniVO: toVO(card), Phone: card.Phone, Wechat: card.Wechat, Email: card.Email}
+	return OwnerVO{AlumniVO: toVO(card), Phone: card.Phone, Wechat: card.Wechat, Email: card.Email,
+		PhonePublic: card.PhonePublic, WechatPublic: card.WechatPublic}
 }
 
 func (l *AuthLogic) UpdateCard(ctx context.Context, req CreateRequest) (*CreateResult, error) {

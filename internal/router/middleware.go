@@ -58,6 +58,9 @@ func writeGuard(limiter dao.Limiter) gin.HandlerFunc {
 		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, logic.MaxUploadImageBytes+(128<<10))
 		limit := 20
 		period := 10 * time.Minute
+		if c.FullPath() == "/api/v1/growth/events" {
+			limit = 120
+		}
 		if strings.HasSuffix(c.FullPath(), "/unlock") || strings.HasPrefix(c.FullPath(), "/api/v1/auth/") {
 			limit = 10
 			period = time.Minute

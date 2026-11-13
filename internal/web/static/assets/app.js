@@ -1,3 +1,5 @@
+import { classPage } from "./pages-growth.js";
+import { captureAttribution, contextFor, track } from "./growth.js";
 import { api, session } from "./api.js";
 import { loading, errorState, closeModal } from "./ui.js";
 import { home, directory, universities } from "./pages-discover.js";
@@ -61,6 +63,8 @@ document.addEventListener(
 );
 export async function render(restore = false) {
   const version = ++renderVersion;
+  const currentURL = new URL(location.href);
+  captureAttribution(currentURL);
   routeKey = location.pathname + location.search;
   document.querySelectorAll("[data-nav]").forEach((link) => {
     const active = link.dataset.nav === location.pathname;
@@ -73,6 +77,7 @@ export async function render(restore = false) {
   const titles = {
     "/": "校友之家",
     "/directory": "校友通讯录",
+    "/class": "同班同学报到",
     "/universities": "大学去向",
     "/register": "登记 · 领取校友卡",
     "/moments": "校园映像",
@@ -87,6 +92,7 @@ export async function render(restore = false) {
     {
       "/": home,
       "/directory": directory,
+      "/class": classPage,
       "/universities": universities,
       "/register": register,
       "/moments": moments,
@@ -104,6 +110,9 @@ export async function render(restore = false) {
     if (version !== renderVersion) return;
     main.innerHTML = result.html;
     result.bind?.(main);
+    if (currentURL.searchParams.get("share_id") && contextFor().share_id) {
+      track("share_visit", {graduation_year:currentURL.searchParams.get("graduation_year"),class_name:currentURL.searchParams.get("class_name") || ""});
+    }
     requestAnimationFrame(() =>
       window.scrollTo({
         top: restore ? scrollPositions.get(routeKey) || 0 : 0,

@@ -114,9 +114,21 @@ export function pagination(page, total, pageSize) {
 export async function copyText(text) {
   try {
     await navigator.clipboard.writeText(text);
-    toast("已复制，请妥善保存");
+    toast("已复制");
+    return true;
   } catch {
-    toast("浏览器无法自动复制，请长按或选中编辑码复制");
+    // Older and ordinary HTTP browsers may not expose the async clipboard API.
+    const input = document.createElement("textarea");
+    input.value = text;
+    input.style.cssText = "position:fixed;left:-9999px;top:0";
+    document.body.append(input);
+    input.select();
+    let copied = false;
+    try { copied = document.execCommand("copy"); } catch {}
+    input.remove();
+    if (copied) {toast("已复制");return true;}
+    modal("请长按或选中复制", `<label class="field">复制内容<textarea readonly rows="5">${esc(text)}</textarea></label>`);
+    return false;
   }
 }
 export function secretDialog(title, code, explanation, link = "") {

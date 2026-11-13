@@ -1,3 +1,4 @@
+import { growthDashboard } from "./growth-admin.js";
 import { api, session } from "./api.js";
 import { icon } from "./icons.js";
 import { busy, closeModal, dateLabel, empty, esc, modal, pagination, sectionHead, toast } from "./ui.js";
@@ -31,7 +32,7 @@ export async function admin(url) {
     me = await api("/me");
     if (!me.is_admin) return adminGate("当前账号没有管理员权限，请由现有管理员授权。");
   }
-  const view = ["users","content","audit"].includes(url.searchParams.get("view")) ? url.searchParams.get("view") : "users";
+  const view = ["users","content","audit","growth"].includes(url.searchParams.get("view")) ? url.searchParams.get("view") : "users";
   const kind = url.searchParams.get("kind") === "photo" ? "photo" : "post";
   const status = statuses[url.searchParams.get("status")] ? url.searchParams.get("status") : "";
   const page = Math.max(1,Number(url.searchParams.get("page")) || 1);
@@ -40,7 +41,8 @@ export async function admin(url) {
   const path = changes => `/admin?${new URLSearchParams({view,kind,status,keyword,...changes})}`;
   let data;
   try {
-    if (view === "users") data = await adminAPI(`/admin/users?${new URLSearchParams({keyword,page,page_size:12})}`);
+    if (view === "growth") data = await adminAPI(`/admin/growth?${new URLSearchParams(Object.fromEntries(["days","source","campaign","graduation_year","class_name"].map(key=>[key,url.searchParams.get(key)||""]).filter(([,value])=>value)))}`);
+    else if (view === "users") data = await adminAPI(`/admin/users?${new URLSearchParams({keyword,page,page_size:12})}`);
     else if (view === "audit") data = await adminAPI(`/admin/audit?page=${page}&page_size=20`);
     else if (Number.isSafeInteger(target) && target > 0) {
       const row = await adminAPI(`/admin/${kind}/${target}`); data = {items:[row],total:1};
@@ -50,12 +52,14 @@ export async function admin(url) {
     throw error;
   }
   let content;
-  if (view === "users") content = `<form class="post-search" id="admin-search"><label class="sr-only" for="admin-keyword">查找账号或姓名</label><input id="admin-keyword" name="keyword" maxlength="100" placeholder="搜索账号或校友姓名…" value="${esc(keyword)}"/><button class="button primary" type="submit">查找用户</button></form><p class="subtle">共 ${data.total} 个用户。授权后可管理用户和社区内容，撤权会在下一次请求时生效。</p><div class="admin-rows">${data.items.map(u=>`<article class="admin-row"><div><strong>${esc(u.name || u.account)}</strong><span class="admin-status">${u.is_admin ? "管理员" : "普通用户"}</span><p>账号：${esc(u.account)} · User ID：${u.id} · 校友卡：${u.alumni_id}</p></div><button class="button outline" data-role-user="${u.id}" ${u.id === me?.user_id ? "disabled" : ""}>${u.is_admin ? "撤销管理员" : "设为管理员"}</button></article>`).join("") || empty("未找到用户","换一个账号或姓名试试。")}</div>${pagination(page,data.total,12)}`;
+  if (view === "growth") content = growthDashboard(data,url);
+  else if (view === "users") content = `<form class="post-search" id="admin-search"><label class="sr-only" for="admin-keyword">查找账号或姓名</label><input id="admin-keyword" name="keyword" maxlength="100" placeholder="搜索账号或校友姓名…" value="${esc(keyword)}"/><button class="button primary" type="submit">查找用户</button></form><p class="subtle">共 ${data.total} 个用户。授权后可管理用户和社区内容，撤权会在下一次请求时生效。</p><div class="admin-rows">${data.items.map(u=>`<article class="admin-row"><div><strong>${esc(u.name || u.account)}</strong><span class="admin-status">${u.is_admin ? "管理员" : "普通用户"}</span><p>账号：${esc(u.account)} · User ID：${u.id} · 校友卡：${u.alumni_id}</p></div><button class="button outline" data-role-user="${u.id}" ${u.id === me?.user_id ? "disabled" : ""}>${u.is_admin ? "撤销管理员" : "设为管理员"}</button></article>`).join("") || empty("未找到用户","换一个账号或姓名试试。")}</div>${pagination(page,data.total,12)}`;
   else if (view === "content") content = `<div class="admin-filters"><div class="category-filters"><button class="chip ${kind==="post"?"active":""}" data-kind="post">帖子</button><button class="chip ${kind==="photo"?"active":""}" data-kind="photo">照片</button></div><label>状态 <select id="admin-status"><option value="">全部</option>${Object.entries(statuses).map(([key,label])=>`<option value="${key}" ${status===key?"selected":""}>${label}</option>`).join("")}</select></label></div><form class="post-search" id="admin-search"><label class="sr-only" for="admin-keyword">搜索内容</label><input id="admin-keyword" name="keyword" maxlength="100" placeholder="搜索帖子正文或照片说明…" value="${esc(keyword)}"/><button class="button primary" type="submit">查找内容</button></form>${target > 0 ? `<a class="text-link" href="${path({view:"content"})}">返回内容列表</a>` : ""}<p class="subtle">共 ${data.total} 条内容。软删除保留原始记录与审计，公开入口将不可访问。</p><div class="admin-rows">${data.items.map(item=>`<article class="admin-row"><div><strong>${kind==="photo"?"照片":"帖子"} #${item.id}</strong><span class="admin-status ${item.status}">${statuses[item.status] || esc(item.status)}</span><p class="admin-summary">${esc(item.summary)}</p><small>${dateLabel(item.created_at)}</small></div><div class="admin-row-actions">${item.status!=="deleted" ? `${item.status==="active"?`<a href="/${kind==="photo"?"moments?photo":"forum?post"}=${item.id}" class="text-link">查看</a>`:""}<button class="button outline" data-moderate="${item.id}" data-action-value="${item.status==="active"?"hidden":"active"}">${item.status==="active"?"下架":"恢复公开"}</button><button class="button danger" data-delete-content="${item.id}">软删除</button>`:'<span class="subtle">原始记录已保留</span>'}</div></article>`).join("") || empty("没有符合条件的内容","试试其他关键词或状态。")}</div>${pagination(page,data.total,12)}`;
   else content = `<p class="subtle">按时间倒序记录权限变更与内容管理操作。操作人 0 表示管理 Token 或历史操作。</p><div class="admin-rows">${data.items.map(log=>`<article class="admin-row"><div><strong>${esc({grant_admin:"授予管理员",revoke_admin:"撤销管理员",active:"恢复公开",hidden:"下架",deleted:"软删除"}[log.Action] || log.Action)}</strong><span class="admin-status">${esc(log.Kind)} #${log.TargetID}</span><p>${esc(log.Reason)}</p><small>操作人 User ID：${log.ActorUserID || 0} · ${dateLabel(log.CreatedAt)}</small></div></article>`).join("") || empty("暂无操作记录","管理操作会在这里留下记录。")}</div><div class="pagination">${page>1?`<button class="button outline" data-page="${page-1}">上一页</button>`:""}<span>第 ${page} 页</span>${data.items.length===20?`<button class="button outline" data-page="${page+1}">下一页</button>`:""}</div>`;
   return {
-    html:`<div class="wrap page-content admin-page">${sectionHead("COMMUNITY MANAGEMENT","让社区保持温暖",bootstrapToken?"管理 Token 会话":"当前管理员："+esc(me.account),'<button class="button outline" id="leave-admin">退出管理</button>')}<nav class="admin-tabs" aria-label="管理分类">${[["users","用户权限"],["content","内容管理"],["audit","操作审计"]].map(([key,label])=>`<a class="chip ${view===key?"active":""}" href="${path({view:key,page:1})}">${label}</a>`).join("")}</nav>${content}</div>`,
+    html:`<div class="wrap page-content admin-page">${sectionHead("COMMUNITY MANAGEMENT","让社区保持温暖",bootstrapToken?"管理 Token 会话":"当前管理员："+esc(me.account),'<button class="button outline" id="leave-admin">退出管理</button>')}<nav class="admin-tabs" aria-label="管理分类">${[["users","用户权限"],["content","内容管理"],["audit","操作审计"],["growth","增长数据"]].map(([key,label])=>`<a class="chip ${view===key?"active":""}" href="${path({view:key,page:1})}">${label}</a>`).join("")}</nav>${content}</div>`,
     bind(root) {
+      root.querySelector("#growth-filters")?.addEventListener("submit",event=>{event.preventDefault();const params=new URLSearchParams(new FormData(event.currentTarget));for(const [key,value] of [...params])if(!value)params.delete(key);params.set("view","growth");navigate(`/admin?${params}`);});
       root.querySelector("#leave-admin").onclick=()=>{bootstrapToken="";navigate("/me");};
       root.querySelectorAll("[data-page]").forEach(b=>b.onclick=()=>navigate(path({page:b.dataset.page})));
       root.querySelectorAll("[data-kind]").forEach(b=>b.onclick=()=>navigate(path({kind:b.dataset.kind,page:1})));

@@ -122,7 +122,8 @@ func publicCard(row model.Alumni) model.Alumni {
 	return model.Alumni{ID: row.ID, Name: row.Name, Identity: row.Identity, GraduationYear: row.GraduationYear,
 		ClassName: row.ClassName, City: row.City, University: row.University, DreamUniversity: row.DreamUniversity,
 		Major: row.Major, Education: row.Education, Company: row.Company, Position: row.Position, Message: row.Message,
-		AvatarColor: row.AvatarColor, ContactPublic: row.ContactPublic}
+		AvatarColor: row.AvatarColor, ContactPublic: row.ContactPublic,
+		PhonePublic: row.PhonePublic, WechatPublic: row.WechatPublic}
 }
 
 func (s *CachedStore) ListAlumni(ctx context.Context, q ListQuery) ([]model.Alumni, int64, error) {

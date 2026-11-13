@@ -57,7 +57,7 @@ export async function home() {
     <section class="hero">
       <div class="hero-copy"><div class="eyebrow"><span class="eyebrow-line"></span>一所母校，一生牵挂 <span class="tiny-dot">·</span> SINCE 1903</div>
       <h1>山河万里，<br>我们仍是<span>榆中人。</span></h1>
-      <p class="hero-description">从榆溪河畔出发，奔赴各自的山海。<br>在这里，留下近况，寻回同窗，让每一次重逢都有迹可循。</p>
+      <p class="hero-description">从榆溪河畔出发，奔赴各自的山海。<br>领取我的校友卡，找到同班同学，看看榆中人都去了哪里。</p>
       <div class="hero-actions"><a class="button primary large" href="/register">领取我的校友卡 ${icon("arrow")}</a><a class="button text-button" href="/directory">寻找老同学 ${icon("up")}</a></div>
       <div class="hero-community"><div class="avatar-stack">${alumni.items.map((p) => avatar(p)).join("")}</div><span>${stats.alumni ? `<strong>${stats.alumni}</strong> 位同窗已在这里相聚` : "让我们从一次登记开始重逢"}<small>无论走多远，总有一份榆中情。</small></span></div></div>
       <div class="hero-visual"><div class="hero-image"><img src="/assets/campus-main.jpg" alt="榆林中学校园景致" fetchpriority="high" width="1000" height="680" /><div class="image-shade"></div><div class="hero-image-caption"><span>此心安处，亦是吾乡</span><small>YULIN HIGH SCHOOL · OUR SHARED HOME</small></div></div><div class="since-seal"><small>百年榆中</small><strong>1903</strong><small>薪火相传</small></div><div class="memory-note"><span class="note-pin"></span><span class="note-kicker">写给每一位榆中人</span><p>青春散场，<br>同窗<span>不散。</span></p><small>THE STORY CONTINUES ↗</small></div><span class="hero-side-label">OUR ROOTS. OUR STORIES. OUR HOME.</span></div>

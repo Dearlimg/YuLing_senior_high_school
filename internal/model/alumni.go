@@ -31,6 +31,8 @@ type Alumni struct {
 	Message         string `gorm:"type:varchar(120);not null;default:''"`
 	AvatarColor     string `gorm:"type:varchar(8);not null;default:red"`
 	ContactPublic   bool
+	PhonePublic     bool
+	WechatPublic    bool
 	EditCodeHash    string  `gorm:"type:char(64);not null;default:''"`
 	CreateKey       *string `gorm:"type:char(64);uniqueIndex:idx_alumni_create_key"`
 	Status          string  `gorm:"type:varchar(16);not null;default:active"`

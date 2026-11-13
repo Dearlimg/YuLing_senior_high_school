@@ -52,11 +52,13 @@ func New(d Deps) *gin.Engine {
 		v1.GET("/directory-meta", d.Alumni.Meta)
 		v1.GET("/classes", d.Alumni.Classes)
 		v1.GET("/universities", d.Alumni.Universities)
+		v1.POST("/growth/events", d.Alumni.GrowthEvent)
 		alumni := v1.Group("/alumni")
 		{
 			alumni.GET("", d.Alumni.List)
 			alumni.GET("/:id", d.Alumni.GetByID)
 			alumni.POST("", d.Auth.Register)
+			alumni.POST("/claim", d.Alumni.Claim)
 			alumni.PUT("/:id", d.Alumni.Update)
 			alumni.POST("/:id/unlock", d.Alumni.Unlock)
 		}
@@ -86,6 +88,7 @@ func New(d Deps) *gin.Engine {
 		signed.POST("/posts/:id/replies", d.Community.Reply)
 		admin := v1.Group("/admin", adminGuard(d.Config.App.AdminToken, d.AuthLogic))
 		admin.GET("/users", d.Auth.AdminUsers)
+		admin.GET("/growth", d.Alumni.GrowthMetrics)
 		admin.PUT("/users/:id/role", d.Auth.SetAdmin)
 		admin.GET("/content/:kind", d.Community.AdminContent)
 		admin.DELETE("/:kind/:id", d.Community.AdminDelete)

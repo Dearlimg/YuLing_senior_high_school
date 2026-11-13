@@ -67,6 +67,9 @@ type ModerationItem struct {
 
 // Store keeps persistence details out of the business layer.
 type Store interface {
+	ClaimAlumni(context.Context, *model.Alumni, *model.GrowthEvent) error
+	RecordGrowth(context.Context, *model.GrowthEvent) error
+	GrowthCounts(context.Context, GrowthQuery) ([]GrowthCount, error)
 	ListUsers(context.Context, ContentQuery) ([]AdminUser, int64, error)
 	SetUserAdmin(context.Context, uint64, bool, model.AuditLog) error
 	ListModeration(context.Context, string, ContentQuery) ([]ModerationItem, int64, error)

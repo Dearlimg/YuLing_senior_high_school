@@ -13,6 +13,7 @@ import (
 
 // MemoryStore is an explicit, ephemeral demo/test store. Production never falls back to it.
 type MemoryStore struct {
+	growth   []model.GrowthEvent
 	likes    map[string]bool
 	users    map[uint64]model.User
 	sessions map[string]memorySession
@@ -33,7 +34,8 @@ type rateWindow struct {
 
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		likes: map[string]bool{}, users: map[uint64]model.User{}, sessions: map[string]memorySession{},
+		growth: []model.GrowthEvent{},
+		likes:  map[string]bool{}, users: map[uint64]model.User{}, sessions: map[string]memorySession{},
 		alumni: map[uint64]model.Alumni{}, photos: map[uint64]model.Photo{},
 		posts: map[uint64]model.Post{}, replies: map[uint64]model.Reply{},
 		audits: []model.AuditLog{}, keys: map[string]bool{}, rates: map[string]rateWindow{},
