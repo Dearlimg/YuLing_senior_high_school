@@ -1,3 +1,4 @@
+import { universityPoster } from "./media-sharing.js";
 import { api } from "./api.js";
 import { icon } from "./icons.js";
 import {
@@ -157,7 +158,8 @@ export async function directory(url) {
 }
 
 export async function universities(url) {
-  const result = await api("/universities");
+  const year = Number(url.searchParams.get("graduation_year")) || 0;
+  const [result,meta] = await Promise.all([api(year ? `/cohorts/${year}/universities` : "/universities"),api("/directory-meta")]);
   const query = url.searchParams.get("keyword") || "";
   const filtered = result.items.filter((u) =>
     u.name.toLowerCase().includes(query.toLowerCase()),
@@ -165,13 +167,15 @@ export async function universities(url) {
   const max = result.items[0]?.count || 1;
   return {
     html: `<div class="wrap page-content">${sectionHead("WHERE WE GO", "从榆中出发，去往更大的世界", "每一所大学，都有我们的故事。点开校名，遇见同路的学长学姐。")}
-    <div class="university-layout"><aside class="university-aside"><div class="eyebrow">OUR FOOTPRINTS</div><h2>青春的下一站，<br><span>我们各自闪耀。</span></h2><div class="university-numbers"><div><strong>${result.items.length}</strong><span>所大学</span></div><div><strong>${result.total}</strong><span>位已填院校的校友</span></div></div><div class="university-art" aria-hidden="true">${icon("school")}<span>1903</span><p>怀天下 · 求真知 · 报国家</p></div><p class="subtle">仅统计校友实际就读院校，<br>在读同学的理想大学不计入榜单。</p><a href="/directory" class="text-link">去通讯录看看 ${icon("arrow")}</a></aside>
-    <section class="university-ranking"><div class="ranking-title"><div><h2>大学去向名单</h2><small>以登记信息为据，留下每一步足迹。</small></div><span class="tag">按人数排序</span></div><form id="university-search" class="search-field">${icon("search")}<input name="keyword" placeholder="搜索大学名称" aria-label="搜索大学名称" value="${esc(query)}" maxlength="100"/><button class="button outline" type="submit">搜索</button></form>${filtered.length ? filtered.map((u) => `<a href="/directory?university=${encodeURIComponent(u.name)}" class="university-row"><span class="rank-number ${result.items.indexOf(u) < 3 ? "top-rank" : ""}">${String(result.items.indexOf(u) + 1).padStart(2, "0")}</span><div class="university-row-main"><div><h3>${esc(u.name)}</h3><span><strong>${u.count}</strong> 人 ${icon("up")}</span></div><div class="bar-track"><span style="width:${Math.max(3, (u.count / max) * 100)}%"></span></div></div></a>`).join("") : empty(query ? "没有找到这所大学" : "下一站，由你点亮", query ? "试试学校全称，或清空搜索。" : "填写实际就读院校，让你的大学出现在这里。", `<a href="${query ? "/universities" : "/register"}" class="button outline">${query ? "清空搜索" : "去登记"}</a>`)}<p class="ranking-footnote">相同人数按校名排序 · 常见学校简称自动归并</p></section></div></div>`,
+    <div class="cohort-tools"><label class="field">按届别看去向<select id="cohort-year"><option value="">全部届别</option>${meta.years.map(y=>`<option value="${y}" ${y===year?"selected":""}>${y} 届</option>`).join("")}</select></label><button class="button outline" id="share-universities">生成${year?`${year}届`:"大学去向"}分享图</button></div><div class="university-layout"><aside class="university-aside"><div class="eyebrow">OUR FOOTPRINTS</div><h2>青春的下一站，<br><span>我们各自闪耀。</span></h2><div class="university-numbers"><div><strong>${result.items.length}</strong><span>所大学</span></div><div><strong>${result.total}</strong><span>位已填院校的校友</span></div></div><div class="university-art" aria-hidden="true">${icon("school")}<span>1903</span><p>怀天下 · 求真知 · 报国家</p></div><p class="subtle">仅统计校友实际就读院校，<br>在读同学的理想大学不计入榜单。</p><a href="/directory" class="text-link">去通讯录看看 ${icon("arrow")}</a></aside>
+    <section class="university-ranking"><div class="ranking-title"><div><h2>大学去向名单</h2><small>以登记信息为据，留下每一步足迹。</small></div><span class="tag">按人数排序</span></div><form id="university-search" class="search-field">${icon("search")}<input name="keyword" placeholder="搜索大学名称" aria-label="搜索大学名称" value="${esc(query)}" maxlength="100"/><button class="button outline" type="submit">搜索</button></form>${filtered.length ? filtered.map((u) => `<a href="/directory?university=${encodeURIComponent(u.name)}${year?`&graduation_year=${year}`:""}" class="university-row"><span class="rank-number ${result.items.indexOf(u) < 3 ? "top-rank" : ""}">${String(result.items.indexOf(u) + 1).padStart(2, "0")}</span><div class="university-row-main"><div><h3>${esc(u.name)}</h3><span><strong>${u.count}</strong> 人 ${icon("up")}</span></div><div class="bar-track"><span style="width:${Math.max(3, (u.count / max) * 100)}%"></span></div></div></a>`).join("") : empty(query ? "没有找到这所大学" : "下一站，由你点亮", query ? "试试学校全称，或清空搜索。" : "填写实际就读院校，让你的大学出现在这里。", `<a href="${query ? "/universities" : "/register"}" class="button outline">${query ? "清空搜索" : "去登记"}</a>`)}<p class="ranking-footnote">相同人数按校名排序 · 常见学校简称自动归并</p></section></div></div>`,
     bind(root) {
+      root.querySelector("#share-universities").onclick=()=>universityPoster(year);
+      root.querySelector("#cohort-year").onchange=e=>{const params=new URLSearchParams(url.search);if(e.target.value)params.set("graduation_year",e.target.value);else params.delete("graduation_year");navigate(`/universities?${params}`);};
       root.querySelector("#university-search").onsubmit = (e) => {
         e.preventDefault();
         navigate(
-          `/universities?keyword=${encodeURIComponent(new FormData(e.currentTarget).get("keyword").trim())}`,
+          `/universities?${new URLSearchParams({keyword:new FormData(e.currentTarget).get("keyword").trim(),...(year?{graduation_year:year}:{})})}`,
         );
       };
     },

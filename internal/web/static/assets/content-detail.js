@@ -1,3 +1,4 @@
+import { photoPoster } from "./media-sharing.js";
 import { api, requestKey, session } from "./api.js";
 import { icon } from "./icons.js";
 import { avatar, busy, dateLabel, esc, modal, toast } from "./ui.js";
@@ -22,6 +23,10 @@ async function openContent(kind,id) {
     host.querySelector(".modal-head h2").textContent = title;
     host.insertAdjacentHTML("beforeend", `<div class="content-detail"><div class="detail-media">${post.image_url ? `<img src="${esc(post.image_url)}" alt="${esc(post.nickname)}分享的照片"/>` : `<div class="detail-text-cover"><span class="eyebrow">同窗手记</span><p>${esc(post.content)}</p><span>写给时光，也写给你</span></div>`}</div><section class="detail-panel"><header class="post-author">${avatar({name:post.nickname,avatar_color:post.avatar_color})}<div><strong>${esc(post.nickname)}</strong><small>${post.graduation_year ? `${post.graduation_year}届 · ` : ""}${dateLabel(post.created_at)}</small></div></header><div class="detail-scroll"><p class="detail-caption">${esc(post.content)}</p><h3 class="comments-heading">评论 <span data-comment-count>${post.reply_count}</span></h3><button class="text-link earlier-comments" hidden>查看更早评论</button><div class="detail-comments" aria-live="polite"></div><button class="text-link more-comments" hidden>查看更多评论</button><p class="comment-error form-error" role="alert" hidden></p></div><footer class="detail-actions"><button class="like-button" aria-pressed="false" aria-label="点赞">${icon("heart")}<span>${post.like_count}</span></button><span class="subtle">${icon("chat")} <span data-comment-total>${post.reply_count}</span></span><div class="reply-target" hidden><span></span><button class="text-link cancel-reply" type="button">取消回复</button></div><form class="detail-reply-form"><label class="sr-only" for="detail-reply">写下评论</label><textarea id="detail-reply" name="content" rows="2" maxlength="500" required placeholder="说点什么，让同窗听见…"></textarea><p class="form-error" role="alert" tabindex="-1" hidden></p><button class="button primary" type="submit">发送</button></form></footer></section></div>`);
     host.querySelector(":scope > .subtle")?.remove();
+    if(kind === "photo") {
+      host.querySelector(".detail-caption").insertAdjacentHTML("afterend",'<button class="button outline" id="share-memory">生成校园记忆卡片</button>');
+      host.querySelector("#share-memory").onclick=()=>photoPoster(id);
+    }
     const comments = host.querySelector(".detail-comments");
     const more = host.querySelector(".more-comments");
     const earlier = host.querySelector(".earlier-comments");

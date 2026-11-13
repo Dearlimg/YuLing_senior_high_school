@@ -61,12 +61,15 @@ export function track(event, person = {}, extra = {}) {
 }
 
 export function shareURL(person, kind = "class", campaign = "") {
-  const url = new URL(kind === "class" ? "/class" : `/alumni/${person.id}`, location.origin);
-  if (kind === "class") {
-    url.searchParams.set("graduation_year", person.graduation_year);
-    url.searchParams.set("class_name", person.class_name);
-  }
-  url.searchParams.set("source", kind === "class" ? "class_invite" : "alumni_card");
+  return contentShareURL(kind === "class" ? "/class" : `/alumni/${person.id}`,
+    kind === "class" ? {graduation_year:person.graduation_year,class_name:person.class_name} : {},
+    kind === "class" ? "class_invite" : "alumni_card",campaign);
+}
+
+export function contentShareURL(path, params = {}, source = "campus_memory", campaign = "") {
+  const url = new URL(path,location.origin);
+  for (const [key,value] of Object.entries(params)) if (value!=="" && value!==undefined) url.searchParams.set(key,value);
+  url.searchParams.set("source",source);
   const activity = campaign || (attribution?.expires > Date.now() ? attribution.campaign : "") || "reunion";
   url.searchParams.set("campaign", slug.test(activity) ? activity : "reunion");
   url.searchParams.set("share_id", requestKey());

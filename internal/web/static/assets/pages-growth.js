@@ -1,3 +1,4 @@
+import { classEngagementHTML, bindClassEngagement } from "./pages-engagement.js";
 import { api, requestKey } from "./api.js";
 import { alumniCard as listCard, busy, copyText, empty, esc, field, modal, pagination, sectionHead, toast } from "./ui.js";
 import { navigate } from "./app.js";
@@ -63,7 +64,7 @@ export async function quickClaim(url, card) {
 export function successHTML(person) {
   const state = claimState(person.id);
   if (!state) return "";
-  return `<section class="claim-success"><div><span class="eyebrow">WELCOME HOME</span><h2>校友卡已领取，欢迎回家。</h2><p>先保存编辑码，再邀请同班同学一起来报到。</p></div><div class="edit-code-box"><strong>你的编辑码 · 请私下保存</strong><code>${esc(state.editCode)}</code><button class="button outline" id="copy-edit-code">复制编辑码</button><small>仅本次页面会话可见，刷新后不再展示。请勿放进海报或发给别人。</small></div><div class="growth-actions">${person.class_name ? '<button class="button primary" id="welcome-invite">邀请同班同学</button>' : ""}<button class="button outline" id="welcome-save-card">保存校友卡海报</button><button class="button outline" id="complete-profile">让同学更容易找到我 · 补充近况</button><a class="button outline" href="/login?claim=1&alumni_id=${person.id}">可选：绑定账号，方便下次登录</a></div></section>`;
+  return `<section class="claim-success"><div><span class="eyebrow">WELCOME HOME</span><h2>校友卡已领取，${state.recovered?"新编辑码已生成，请重新保存。":"欢迎回家。"}</h2><p>先保存编辑码，再邀请同班同学一起来报到。</p></div><div class="edit-code-box"><strong>你的编辑码 · 请私下保存</strong><code>${esc(state.editCode)}</code><button class="button outline" id="copy-edit-code">复制编辑码</button><small>仅本次页面会话可见，刷新后不再展示。请勿放进海报或发给别人。</small></div><div class="growth-actions">${person.class_name ? '<button class="button primary" id="welcome-invite">邀请同班同学</button>' : ""}<button class="button outline" id="welcome-save-card">保存校友卡海报</button><button class="button outline" id="complete-profile">让同学更容易找到我 · 补充近况</button><a class="button outline" href="/login?claim=1&alumni_id=${person.id}">可选：绑定账号，方便下次登录</a></div></section>`;
 }
 
 export function shareActionsHTML(person) {
@@ -80,7 +81,7 @@ export async function editWithCode(person, root) {
   };
   const code = claimState(person.id)?.editCode;
   if (code) { try {await open(code);} catch(error) {toast(error.message);} return; }
-  modal("管理我的校友卡",`<p class="subtle">已绑定账号的校友卡，请<a href="/login?next=/me">登录个人中心</a>。未绑定的卡片可凭编辑码修改。</p><form id="unlock-card-form">${field("编辑码","code",{required:true,type:"password",max:80})}<p class="form-error" role="alert" tabindex="-1" hidden></p><button class="button primary" type="submit">验证并修改</button></form>`);
+  modal("管理我的校友卡",`<p class="subtle">已绑定账号的校友卡，请<a href="/login?next=/me">登录个人中心</a>。未绑定的卡片可凭编辑码修改。遗失编辑码？<a href="/recover?alumni_id=${person.id}">申请找回</a>。</p><form id="unlock-card-form">${field("编辑码","code",{required:true,type:"password",max:80})}<p class="form-error" role="alert" tabindex="-1" hidden></p><button class="button primary" type="submit">验证并修改</button></form>`);
   const form = document.querySelector("#unlock-card-form");
   form.onsubmit=event=>{event.preventDefault();busy(form,()=>open(form.elements.code.value.trim()));};
 }
@@ -126,13 +127,14 @@ export async function classPage(url) {
   }
   const page = Math.max(1,Number(url.searchParams.get("page")) || 1);
   const person = {graduation_year:year,class_name:name};
-  const result = await api(`/alumni?${new URLSearchParams({...person,page,page_size:12})}`);
+  const [result,hub] = await Promise.all([api(`/alumni?${new URLSearchParams({...person,page,page_size:12})}`),api(`/class-hub?${new URLSearchParams(person)}`)]);
   const params = new URLSearchParams(url.search);params.delete("page");params.set("graduation_year",year);params.set("class_name",name);
   if (year>new Date().getFullYear()) params.set("identity","student");
   const register = `/register?${params}`;
   return {
-    html:`<div class="wrap page-content class-page"><section class="class-reunion"><span class="eyebrow">OUR CLASS · OUR SHARED STORY</span><p class="class-year">${year} 届 · ${esc(name)}</p><h1>好久不见，<br>这一次，等你报到。</h1><p>已有 <strong>${result.total}</strong> 位同学在这里相聚。<br>来看看都有谁，也让同学找到你。</p><div class="growth-actions"><a class="button primary large" href="${esc(register)}">我也是这个班的，立即报到 →</a><button class="button outline" id="class-poster">生成班级召集海报</button></div><small>自由浏览，无需登录；报到时可修改届别与班级。</small></section><div class="section-heading"><div><span class="eyebrow">NICE TO SEE YOU AGAIN</span><h2>同班都有谁 · ${result.total} 人</h2></div><a href="/directory" class="text-link">看看其他届别 →</a></div><div class="recent-alumni class-members">${result.items.map(listCard).join("") || empty("第一位报到的同学，会是谁？","写下自己的名字，邀请老同学一起重逢。")}</div>${pagination(page,result.total,12)}</div>`,
+    html:`<div class="wrap page-content class-page"><section class="class-reunion"><span class="eyebrow">OUR CLASS · OUR SHARED STORY</span><p class="class-year">${year} 届 · ${esc(name)}</p><h1>好久不见，<br>这一次，等你报到。</h1><p>已有 <strong>${result.total}</strong> 位同学在这里相聚。<br>来看看都有谁，也让同学找到你。</p><div class="growth-actions"><a class="button primary large" href="${esc(register)}">我也是这个班的，立即报到 →</a><button class="button outline" id="class-poster">生成班级召集海报</button></div><small>自由浏览，无需登录；报到时可修改届别与班级。</small></section><div class="section-heading"><div><span class="eyebrow">NICE TO SEE YOU AGAIN</span><h2>同班都有谁 · ${result.total} 人</h2></div><a href="/directory" class="text-link">看看其他届别 →</a></div><div class="recent-alumni class-members">${result.items.map(listCard).join("") || empty("第一位报到的同学，会是谁？","写下自己的名字，邀请老同学一起重逢。")}</div>${pagination(page,result.total,12)}${classEngagementHTML(hub)}</div>`,
     bind(root) {
+      bindClassEngagement(root,hub);
       root.querySelector("#class-poster").onclick=()=>openPoster(person,"class",result.total);
       root.querySelectorAll("[data-page]").forEach(b=>b.onclick=()=>{const next=new URL(url);next.searchParams.set("page",b.dataset.page);navigate(next.pathname+next.search);});
     },

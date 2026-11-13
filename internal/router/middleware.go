@@ -61,7 +61,9 @@ func writeGuard(limiter dao.Limiter) gin.HandlerFunc {
 		if c.FullPath() == "/api/v1/growth/events" {
 			limit = 120
 		}
-		if strings.HasSuffix(c.FullPath(), "/unlock") || strings.HasPrefix(c.FullPath(), "/api/v1/auth/") {
+		credentialRoute := strings.HasSuffix(c.FullPath(), "/unlock") ||
+			strings.HasPrefix(c.FullPath(), "/api/v1/auth/") || strings.Contains(c.FullPath(), "/recovery")
+		if credentialRoute {
 			limit = 10
 			period = time.Minute
 		}

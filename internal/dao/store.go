@@ -67,6 +67,14 @@ type ModerationItem struct {
 
 // Store keeps persistence details out of the business layer.
 type Store interface {
+	ApplyOrganizer(context.Context, *model.ClassOrganizer) error
+	ListOrganizers(context.Context, OrganizerQuery) ([]model.ClassOrganizer, int64, error)
+	ReviewOrganizer(context.Context, OrganizerReview) error
+	CreateRecovery(context.Context, *model.CardRecovery) error
+	FindRecovery(context.Context, uint64) (*model.CardRecovery, error)
+	ListRecoveries(context.Context, ContentQuery) ([]model.CardRecovery, int64, error)
+	ReviewRecovery(context.Context, RecoveryReview) error
+	CompleteRecovery(context.Context, RecoveryCompletion) error
 	ClaimAlumni(context.Context, *model.Alumni, *model.GrowthEvent) error
 	RecordGrowth(context.Context, *model.GrowthEvent) error
 	GrowthCounts(context.Context, GrowthQuery) ([]GrowthCount, error)
@@ -84,6 +92,7 @@ type Store interface {
 	DirectoryMeta(context.Context) (DirectoryMeta, error)
 	Classes(context.Context, ListQuery) ([]ClassGroup, int64, error)
 	Universities(context.Context) ([]University, error)
+	CohortUniversities(context.Context, int) ([]University, error)
 	Stats(context.Context) (Stats, error)
 	Likes(context.Context, model.ContentLike) (LikeState, error)
 	SetLike(context.Context, model.ContentLike, bool) (LikeState, error)
