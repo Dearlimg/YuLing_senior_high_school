@@ -381,3 +381,17 @@ kubectl logs deploy/yulin-server -n apps --since=30m | jq 'select(.request_id ==
 **发布新版本前，先备份数据库并执行 `go run ./cmd/migrate`（容器为 `server migrate`）**，
 新增 `content_like` 表、`reply.parent_id` / `reply.photo_id`、`app_user.is_admin` 与审计操作人字段。
 历史账号默认为普通用户，历史评论仍属于原帖子。新服务会检查新表与字段，缺失时拒绝启动。
+
+## 用户增长与同班连接（2026-11-13）
+
+领卡无需账号密码，先填基本信息，再补充近况；手机号、微信的未来公开意愿默认关闭。
+校友卡、班级召集和里程碑海报支持本机导出，二维码回到对应班级并预填届别与班级。
+照片详情可生成校园记忆卡片，大学去向可按届别筛选和分享；班级志愿召集人经管理员审核后展示。
+未绑定的校友卡可在 `/recover` 申请找回编辑码，需管理员核验本人后凭一次性申请凭证领取。
+
+首页和 `/events` 提供校庆、毕业季、春节返乡主题，`/annual-report` 按真实公开记录生成年报及分享图。
+班级页可主动订阅，登录后在 `/updates` 查看新报到、最新近况、帖子和照片，支持已读与随时退订；仅提供站内通知。
+增长统计在 `/admin` 查看。详细口径、找回运营流程、接口与验收边界见 [docs/growth.md](docs/growth.md)。
+
+**发布前备份并执行 `go run ./cmd/migrate`**，新增 `growth_event`、`class_organizer`、`card_recovery`、`class_subscription`
+及 `alumni.phone_public/wechat_public` 字段。本次未推送或部署，真实数据库迁移和微信实机分享需另行验证。

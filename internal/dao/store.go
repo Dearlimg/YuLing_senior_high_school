@@ -9,8 +9,9 @@ import (
 )
 
 var (
-	ErrNotFound  = errors.New("记录不存在")
-	ErrDuplicate = errors.New("重复提交")
+	ErrNotFound          = errors.New("记录不存在")
+	ErrDuplicate         = errors.New("重复提交")
+	ErrSubscriptionLimit = errors.New("最多可订阅 20 个班级")
 )
 
 type ListQuery struct {
@@ -67,6 +68,11 @@ type ModerationItem struct {
 
 // Store keeps persistence details out of the business layer.
 type Store interface {
+	SaveSubscription(context.Context, *model.ClassSubscription, bool) error
+	Subscriptions(context.Context, uint64) ([]model.ClassSubscription, error)
+	ActivityFeed(context.Context, FeedQuery) (FeedResult, error)
+	ReadActivities(context.Context, uint64, time.Time) error
+	AnnualReport(context.Context, ReportWindow) (AnnualReport, error)
 	ApplyOrganizer(context.Context, *model.ClassOrganizer) error
 	ListOrganizers(context.Context, OrganizerQuery) ([]model.ClassOrganizer, int64, error)
 	ReviewOrganizer(context.Context, OrganizerReview) error

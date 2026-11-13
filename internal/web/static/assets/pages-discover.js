@@ -1,4 +1,5 @@
 import { universityPoster } from "./media-sharing.js";
+import { eventEntriesHTML } from "./pages-retention.js";
 import { api } from "./api.js";
 import { icon } from "./icons.js";
 import {
@@ -77,6 +78,7 @@ export async function home() {
     <section class="home-section"><div class="section-heading"><div><span class="eyebrow">STAY CONNECTED</span><h2>把散落的故事，重新相连</h2></div><p>在这里，每一份近况都值得被看见。</p></div><div class="entry-grid">${entries.map(([n, i, t, d, url, cta]) => `<a href="${url}" class="entry-card"><div class="entry-top"><span class="entry-icon">${icon(i)}</span><small>${n}</small></div><h3>${t}</h3><p>${d}</p><span class="entry-link">${cta}${icon("arrow")}</span></a>`).join("")}</div></section>
     <section class="home-section reunion-section"><div class="reunion-main"><div class="section-heading"><div><span class="eyebrow">NICE TO SEE YOU AGAIN</span><h2>好久不见，老同学</h2></div><a href="/directory" class="text-link">全部校友 ${icon("arrow")}</a></div><div class="recent-alumni">${alumni.items.map(alumniCard).join("") || empty("第一份近况，等你书写", "登记资料，成为校友之家的一员。", '<a href="/register" class="text-link">去登记 ↗</a>')}</div></div><aside class="letter-card"><div class="eyebrow">A LETTER TO YOU</div>${icon("book")}<h3>走得再远，<br>记得常回家看看。</h3><p>写下你的名字和近况，<br>为校友之家的故事添上一页。</p><a href="/register">留下我的近况 ${icon("arrow")}</a><span class="letter-watermark">榆</span></aside></section>
     <section class="home-section"><div class="section-heading"><div><span class="eyebrow">MOMENTS WE SHARE</span><h2>有些时光，一直在心上</h2></div><a href="/moments" class="text-link">走进校园映像 ${icon("arrow")}</a></div><div class="home-photo-grid">${photos.items.length ? photos.items.map((p) => `<a href="/moments" class="home-photo"><img src="${esc(p.image_url)}" alt="${esc(p.caption)}" loading="lazy" width="600" height="400" /><div><small>${esc(p.category)}</small><h3>${esc(p.caption)}</h3><span>${esc(p.uploader)} 的校园记忆 ${icon("up")}</span></div></a>`).join("") : `<div class="home-photo empty-photo"><img src="/assets/campus-detail.jpg" alt="榆林中学校园" loading="lazy"/><div><small>校园光影</small><h3>让记忆，在这里安放</h3><a href="/moments" class="text-link">分享你的第一张照片 ↗</a></div></div>`}</div><p class="image-credit">首页校园摄影来源：<a href="${photoSource}" target="_blank" rel="noopener noreferrer">榆林日报 · 榆林中学 120 周年专题</a>。校友分享图片由上传者提供。</p></section>
+    ${eventEntriesHTML()}
     <section class="home-invitation"><div><span class="eyebrow">YOUR NEXT CHAPTER STARTS HERE</span><h2>世界很大，榆中是我们共同的起点。</h2></div><a class="button primary large" href="/register">加入校友之家 ${icon("arrow")}</a></section>
   </div>`,
   };

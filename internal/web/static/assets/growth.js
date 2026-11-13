@@ -19,11 +19,13 @@ function visitorID() {
 
 export function captureAttribution(url) {
   const share = url.searchParams.get("share_id");
-  if (slug.test(share || "")) {
+  const source = url.searchParams.get("source");
+  const campaign = url.searchParams.get("campaign");
+  if (slug.test(share || "") || (slug.test(source || "") && slug.test(campaign || ""))) {
     attribution = {
-      share_id: share,
-      source: slug.test(url.searchParams.get("source") || "") ? url.searchParams.get("source") : "share",
-      campaign: slug.test(url.searchParams.get("campaign") || "") ? url.searchParams.get("campaign") : "",
+      share_id: slug.test(share || "") ? share : "",
+      source: slug.test(source || "") ? source : "share",
+      campaign: slug.test(campaign || "") ? campaign : "",
       expires: Date.now()+86400000,
     };
     try { sessionStorage.setItem("yulin-attribution", JSON.stringify(attribution)); } catch {}
@@ -31,8 +33,10 @@ export function captureAttribution(url) {
   if (!attribution) {
     try {
       const saved = JSON.parse(sessionStorage.getItem("yulin-attribution") || "null");
-      if (saved?.expires > Date.now() && slug.test(saved.share_id || "")) {
+      if (saved?.expires > Date.now() && (slug.test(saved.share_id || "") ||
+          (slug.test(saved.source || "") && slug.test(saved.campaign || "")))) {
         attribution = {...saved,
+          share_id: slug.test(saved.share_id || "") ? saved.share_id : "",
           source: slug.test(saved.source || "") ? saved.source : "share",
           campaign: slug.test(saved.campaign || "") ? saved.campaign : "",
         };

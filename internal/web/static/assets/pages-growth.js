@@ -1,4 +1,5 @@
 import { classEngagementHTML, bindClassEngagement } from "./pages-engagement.js";
+import { bindClassSubscription } from "./pages-retention.js";
 import { api, requestKey } from "./api.js";
 import { alumniCard as listCard, busy, copyText, empty, esc, field, modal, pagination, sectionHead, toast } from "./ui.js";
 import { navigate } from "./app.js";
@@ -135,6 +136,7 @@ export async function classPage(url) {
     html:`<div class="wrap page-content class-page"><section class="class-reunion"><span class="eyebrow">OUR CLASS · OUR SHARED STORY</span><p class="class-year">${year} 届 · ${esc(name)}</p><h1>好久不见，<br>这一次，等你报到。</h1><p>已有 <strong>${result.total}</strong> 位同学在这里相聚。<br>来看看都有谁，也让同学找到你。</p><div class="growth-actions"><a class="button primary large" href="${esc(register)}">我也是这个班的，立即报到 →</a><button class="button outline" id="class-poster">生成班级召集海报</button></div><small>自由浏览，无需登录；报到时可修改届别与班级。</small></section><div class="section-heading"><div><span class="eyebrow">NICE TO SEE YOU AGAIN</span><h2>同班都有谁 · ${result.total} 人</h2></div><a href="/directory" class="text-link">看看其他届别 →</a></div><div class="recent-alumni class-members">${result.items.map(listCard).join("") || empty("第一位报到的同学，会是谁？","写下自己的名字，邀请老同学一起重逢。")}</div>${pagination(page,result.total,12)}${classEngagementHTML(hub)}</div>`,
     bind(root) {
       bindClassEngagement(root,hub);
+      bindClassSubscription(root,person);
       root.querySelector("#class-poster").onclick=()=>openPoster(person,"class",result.total);
       root.querySelectorAll("[data-page]").forEach(b=>b.onclick=()=>{const next=new URL(url);next.searchParams.set("page",b.dataset.page);navigate(next.pathname+next.search);});
     },

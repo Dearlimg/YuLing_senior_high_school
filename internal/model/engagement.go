@@ -32,3 +32,18 @@ type CardRecovery struct {
 }
 
 func (CardRecovery) TableName() string { return "card_recovery" }
+
+// ClassSubscription is an explicit, cancellable subscription to public class activity.
+type ClassSubscription struct {
+	ID             uint64    `gorm:"primaryKey" json:"id"`
+	UserID         uint64    `gorm:"not null;uniqueIndex:idx_subscription_class" json:"-"`
+	GraduationYear int       `gorm:"not null;uniqueIndex:idx_subscription_class" json:"graduation_year"`
+	ClassName      string    `gorm:"type:varchar(32);not null;uniqueIndex:idx_subscription_class" json:"class_name"`
+	Active         bool      `gorm:"not null" json:"-"`
+	SinceAt        time.Time `json:"since_at"`
+	ReadAt         time.Time `json:"read_at"`
+	CreatedAt      time.Time `json:"-"`
+	UpdatedAt      time.Time `json:"-"`
+}
+
+func (ClassSubscription) TableName() string { return "class_subscription" }

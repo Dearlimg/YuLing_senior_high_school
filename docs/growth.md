@@ -23,7 +23,7 @@
 
 新增 `growth_event` 表及 `alumni.phone_public/wechat_public` 字段；启动检查包含新结构。**备份后执行 `go run ./cmd/migrate`，再发布新二进制/镜像。** 此次没有推送或部署。
 
-领卡与成功事件在同一 MySQL 事务内提交，失败一起回滚；只有成功建档才计成功 UV。档案创建后使公开查询缓存失效，班级人数、通讯录、首页统计随后读取新数据。重复领卡请求使用既有唯一 `CreateKey` 拒绝重复写入。若领卡已提交但响应丢失，重复提交会返回 409，无法重新返回明文编辑码；找回能力属于后续范围。
+领卡与成功事件在同一 MySQL 事务内提交，失败一起回滚；只有成功建档才计成功 UV。档案创建后使公开查询缓存失效，班级人数、通讯录、首页统计随后读取新数据。重复领卡请求使用既有唯一 `CreateKey` 拒绝重复写入。若领卡已提交但响应丢失，重复提交会返回 409，无法重新返回明文编辑码；可走下述人工核验找回流程。
 
 ## 事件、隐私与口径
 
@@ -52,6 +52,16 @@
 
 P1 新表：`class_organizer`、`card_recovery`。新增 `/class-hub`、`/cohorts/:year/universities`、`/me/organizer`、`/alumni/:id/recovery`、`/recovery/:id/status|complete`、`/admin/organizers|recoveries` 接口。变更后同样需备份并显式迁移。
 
-P2 接续实现校庆/毕业季主题、同班订阅和年度报告。
+## P2：持续连接
+
+- `/events?theme=anniversary|graduation|homecoming` 提供校庆报到、毕业季、春节返乡三个长期主题，首页与导航可达。展示实际报到总数，支持主题海报、链接复制、选择届别/班级进入班级页，再预填领卡。不虚构官方活动时间或线下安排。
+- 主题来源使用 `source=event_topic`、对应 `campaign`；年度报告使用 `annual_report / annual_年份`。海报都带随机 `share_id`；专题分享回流的领卡入口继续保留分享标识。没有分享标识的站内专题入口也记录活动来源，但不会算作分享来源领卡。
+- `/annual-report?year=2026` 可按年查看北京时间自然年的新增报到、校友/学生人数、班级/城市数、照片、帖子、实际院校与前十班级，并保存年度纪念海报。统计区间为左闭右开，当前年截至生成时刻；仅纳入当年创建且当前仍公开、未删除的记录。城市、班级和院校使用这些新档案的当前值，不是历史快照，也不代表全体校友。实际院校不含学生理想大学；没有数据时如实显示零。
+- 班级页登录后可主动订阅，`/updates` 和个人中心可查看站内公开动态、未读数、分页、刷新、整批标记已读及退订。每人最多 20 个班级，重复订阅幂等且不重置时间；以服务端返回的 `as_of` 标记此次刷新之前的动态，拒绝未来时间。退订后不再出现在收件箱，重新订阅从当时开始。
+- 动态包含订阅之后的新报到/最新档案近况、可关联到当前公开校友卡的账号帖子与照片。不收录匿名历史内容，不展示联系方式、凭证或图片二进制；隐藏、删除后不再展示。档案仅保留最新状态，账号换班后内容按当前班级归属；这不是不可变的历史消息归档。订阅列表及已读状态仅本人可访问，不发送邮件、短信或外部推送。
+
+P2 新表 `class_subscription`，唯一键为 `user_id/graduation_year/class_name`；同一用户的变更通过数据库行锁串行执行，避免并发突破订阅上限。公开接口 `GET /annual-report?year=`；登录接口 `GET|PUT /me/subscriptions`、`GET /me/updates?page=&page_size=`、`PUT /me/updates/read`（`through` 取返回的 `as_of`）。所有写入沿用限流与同源校验。
+
+完整新增结构为 `growth_event`、`class_organizer`、`card_recovery`、`class_subscription` 及逐项隐私字段。上线前备份并执行显式迁移，再发布新服务；本次只完成本地实现与验收。
 
 二维码实现随应用本地分发，无 CDN 运行时依赖：`qrcode-generator@1.4.4`，上游 [kazuhikoarase/qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator)，MIT 许可保留在 `internal/web/static/assets/third-party/qrcode-LICENSE.txt`；仅追加 ES module 导出适配。

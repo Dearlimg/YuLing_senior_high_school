@@ -1,4 +1,5 @@
 import { recovery } from "./pages-engagement.js";
+import { events, annualReport, updates } from "./pages-retention.js";
 import { classPage } from "./pages-growth.js";
 import { captureAttribution, contextFor, track } from "./growth.js";
 import { api, session } from "./api.js";
@@ -80,6 +81,9 @@ export async function render(restore = false) {
     "/directory": "校友通讯录",
     "/class": "同班同学报到",
     "/recover": "找回校友卡",
+    "/events": "同窗重逢专题",
+    "/annual-report": "年度校友报告",
+    "/updates": "同班动态",
     "/universities": "大学去向",
     "/register": "登记 · 领取校友卡",
     "/moments": "校园映像",
@@ -96,6 +100,9 @@ export async function render(restore = false) {
       "/directory": directory,
       "/class": classPage,
       "/recover": recovery,
+      "/events": events,
+      "/annual-report": annualReport,
+      "/updates": updates,
       "/universities": universities,
       "/register": register,
       "/moments": moments,

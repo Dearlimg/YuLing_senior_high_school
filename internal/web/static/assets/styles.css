@@ -4405,6 +4405,63 @@ dialog .field {
 .recovery-grid h2 { margin:0 0 24px; }
 .cohort-tools { display:flex; gap:20px; align-items:center; flex-wrap:wrap; margin-bottom:28px; }
 .cohort-tools .field { min-width:220px; margin:0; }
+.event-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; }
+.event-card { background:#f6efe1; border:1px solid #e1d6c3; border-radius:14px; padding:30px; display:flex; flex-direction:column; align-items:flex-start; }
+.event-card h3 { font-size:24px; line-height:1.5; margin:22px 0 14px; }
+.event-card p { line-height:1.9; color:var(--muted); flex:1; margin:0 0 24px; }
+.event-card:hover { border-color:#b79561; }
+.topic-tabs { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:28px; }
+.event-hero { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:40px; align-items:center; padding:40px; background:#f4ecdd; border-radius:18px; }
+.event-hero h1 { font-size:clamp(30px,3.5vw,46px); line-height:1.4; }
+.event-hero p { line-height:1.9; }
+.event-hero img { width:100%; height:360px; object-fit:cover; border-radius:12px; }
+.event-count strong { font-size:30px; color:#741f31; }
+.event-class-form { margin-top:32px; }
+.event-class-form form { max-width:800px; }
+.event-class-form .button { margin-top:16px; }
+.annual-tools, .annual-tools form { display:flex; gap:16px; align-items:end; flex-wrap:wrap; }
+.annual-tools { justify-content:space-between; margin-bottom:32px; }
+.annual-tools .field { margin:0; max-width:180px; }
+.report-stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:18px; }
+.report-stats article { display:flex; flex-direction:column; gap:16px; padding:26px; background:#f4ecdd; border-radius:12px; }
+.report-stats strong { font-size:46px; font-family:Georgia,serif; color:#741f31; }
+.report-stats span { font-size:14px; color:#78634c; }
+.report-method { font-size:13px; color:var(--muted); line-height:1.9; margin:24px 0 36px; }
+.annual-columns { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; margin-bottom:32px; }
+.annual-columns h2 { font-size:22px; line-height:1.5; }
+.report-list { padding:0; list-style:none; }
+.report-list li { display:flex; justify-content:space-between; gap:20px; padding:18px 0; border-bottom:1px solid var(--line); line-height:1.6; }
+.report-list li > :first-child { overflow-wrap:anywhere; }
+.report-list strong { white-space:nowrap; color:#741f31; }
+.updates-layout { display:grid; grid-template-columns:300px minmax(0,1fr); gap:28px; align-items:start; }
+.subscriptions-panel h2 { font-size:19px; line-height:1.5; }
+.subscription-row { display:flex; flex-direction:column; align-items:flex-start; gap:12px; padding:20px 0; border-bottom:1px solid var(--line); margin-bottom:16px; overflow-wrap:anywhere; }
+.updates-toolbar { display:flex; justify-content:space-between; gap:16px; align-items:center; flex-wrap:wrap; margin-bottom:20px; }
+.activity-list { display:grid; gap:16px; }
+.activity-row { display:block; background:white; border:1px solid var(--line); padding:24px; border-radius:12px; overflow-wrap:anywhere; }
+.activity-row.unread { border-left:4px solid #8b3949; }
+.activity-row > div { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.activity-dot { width:8px; height:8px; border-radius:50%; background:#d5d0c6; }
+.unread .activity-dot { background:#8b3949; }
+.activity-row p { line-height:1.8; white-space:pre-wrap; margin:16px 0; }
+.activity-row small, .activity-row > div > span:last-child { color:var(--muted); font-size:13px; }
+.class-subscribe { margin-top:24px; padding-top:24px; border-top:1px solid var(--line); }
+@media(max-width:1000px) {
+  .event-hero { padding:28px; gap:24px; }
+  .event-grid { grid-template-columns:1fr; }
+  .event-card { padding:24px; }
+  .updates-layout { grid-template-columns:240px minmax(0,1fr); }
+}
+@media(max-width:700px) {
+  .event-hero, .annual-columns, .updates-layout { grid-template-columns:1fr; }
+  .event-hero { padding:24px 18px; }
+  .event-hero img { height:210px; }
+  .report-stats { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+  .report-stats article { padding:20px 16px; }
+  .report-stats strong { font-size:36px; }
+  .annual-tools { align-items:stretch; }
+  .activity-row { padding:20px 16px; }
+}
 @media(max-width:700px) { .recovery-grid {grid-template-columns:1fr;} .class-hub-panel {padding:22px 18px;} }
 .claim-steps .active { color:var(--red, #741f31); font-weight:700; }
 .quick-claim .form-panel > h2 { font-size:30px; margin:14px 0; }

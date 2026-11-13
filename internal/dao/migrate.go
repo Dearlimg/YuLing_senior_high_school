@@ -10,6 +10,7 @@ import (
 func (s *SQLStore) Migrate(ctx context.Context) error {
 	return s.db.WithContext(ctx).Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").
 		AutoMigrate(
+			&model.ClassSubscription{},
 			&model.ClassOrganizer{},
 			&model.CardRecovery{},
 			&model.GrowthEvent{},
@@ -29,6 +30,7 @@ func (s *SQLStore) CheckSchema(ctx context.Context) error {
 		entity  any
 		columns string
 	}{
+		{entity: &model.ClassSubscription{}, columns: "id, user_id, graduation_year, class_name, active, since_at, read_at"},
 		{entity: &model.ClassOrganizer{}, columns: "id, user_id, alumni_id, graduation_year, class_name, introduction, status"},
 		{entity: &model.CardRecovery{}, columns: "id, alumni_id, receipt_hash, explanation, status, expires_at"},
 		{entity: &model.GrowthEvent{}, columns: "id, event_key, event, visitor_hash, source, campaign, share_id, graduation_year, class_name, alumni_id, created_at"},

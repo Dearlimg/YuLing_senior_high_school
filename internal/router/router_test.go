@@ -73,7 +73,10 @@ func TestOversizedUploadCannotBypassBrowserLimit(t *testing.T) {
 
 func TestEmbeddedPagesAndAPIBoundary(t *testing.T) {
 	router := testEngine()
-	for _, path := range []string{"/", "/directory", "/register", "/universities", "/moments", "/forum", "/privacy", "/alumni/1"} {
+	for _, path := range []string{
+		"/", "/directory", "/register", "/universities", "/moments", "/forum", "/privacy", "/alumni/1",
+		"/class", "/recover", "/events", "/annual-report", "/updates",
+	} {
 		response := httptest.NewRecorder()
 		router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
 		if response.Code != 200 || !strings.Contains(response.Body.String(), "<html lang=\"zh-CN\">") {
@@ -100,6 +103,41 @@ func TestEmbeddedPagesAndAPIBoundary(t *testing.T) {
 	}
 	if !strings.Contains(module.Header().Get("Cache-Control"), "immutable") {
 		t.Fatal("versioned module cache missing")
+	}
+}
+
+func TestRetentionAPIPublicReportAndPrivateSubscriptions(t *testing.T) {
+	router := testEngine()
+	for _, path := range []string{"/api/v1/me/subscriptions", "/api/v1/me/updates"} {
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
+		if response.Code != http.StatusUnauthorized {
+			t.Fatalf("private retention route %s returned %d", path, response.Code)
+		}
+	}
+	for _, path := range []string{"/api/v1/me/subscriptions", "/api/v1/me/updates/read"} {
+		response := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPut, path, strings.NewReader(`{}`))
+		request.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(response, request)
+		if response.Code != http.StatusUnauthorized {
+			t.Fatalf("anonymous retention write %s returned %d", path, response.Code)
+		}
+	}
+	for _, query := range []string{"year=2025", "year=9999", "year=invalid"} {
+		response := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodGet, "/api/v1/annual-report?"+query, nil)
+		router.ServeHTTP(response, request)
+		want := http.StatusBadRequest
+		if query == "year=2025" {
+			want = http.StatusOK
+			if !strings.Contains(response.Body.String(), `"universities":[]`) {
+				t.Fatal("empty annual report did not return a stable array")
+			}
+		}
+		if response.Code != want {
+			t.Fatalf("annual report %s: %d %s", query, response.Code, response.Body.String())
+		}
 	}
 }
 
