@@ -81,8 +81,10 @@ func (s *SQLStore) VisitOverview(ctx context.Context, now time.Time) (*VisitOver
 		return nil, err
 	}
 	trendSince := start.Add(-13 * 24 * time.Hour)
+	// DSN loc=Local 下 created_at 以东八区字符串入库，DATE() 即北京时间自然日；
+	// CAST 保证 parseTime 不把 DATE 列转回时间戳。
 	if err := s.db.WithContext(ctx).Model(&model.VisitEvent{}).
-		Select("DATE(DATE_ADD(created_at, INTERVAL 8 HOUR)) AS day, COUNT(*) AS pv, COUNT(DISTINCT visitor_hash) AS uv").
+		Select("CAST(DATE(created_at) AS CHAR) AS day, COUNT(*) AS pv, COUNT(DISTINCT visitor_hash) AS uv").
 		Where("created_at >= ?", trendSince).Group("day").Order("day").Scan(&out.Days).Error; err != nil {
 		return nil, err
 	}

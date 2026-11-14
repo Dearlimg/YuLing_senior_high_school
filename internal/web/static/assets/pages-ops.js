@@ -45,7 +45,7 @@ function trendChart(days) {
     .map(
       (d) => `<div style="flex:1;text-align:center" title="${esc(d.day)}：PV ${d.pv} / UV ${d.uv}">
         <div style="height:${Math.max(3, Math.round((d.pv / max) * 100))}px;background:var(--wine,#8c2f39);border-radius:4px 4px 0 0"></div>
-        <small class="subtle" style="font-size:11px">${esc(d.day.slice(5))}</small>
+        <small class="subtle" style="font-size:11px">${esc(String(d.day).slice(5, 10))}</small>
         <br/><small class="subtle" style="font-size:11px">${d.uv}人</small>
       </div>`,
     )
