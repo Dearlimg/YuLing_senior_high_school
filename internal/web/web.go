@@ -64,7 +64,7 @@ func Register(r *gin.Engine) {
 		path := c.Request.URL.Path
 		isPage := path == "/" || path == "/directory" || path == "/register" || path == "/class" || path == "/recover" ||
 			path == "/universities" || path == "/moments" || path == "/forum" || path == "/privacy" ||
-			path == "/login" || path == "/me" || path == "/admin" ||
+			path == "/login" || path == "/me" || path == "/admin" || path == "/ops-board" ||
 			path == "/events" || path == "/annual-report" || path == "/updates"
 		if strings.HasPrefix(path, "/alumni/") && !strings.Contains(path, ".") {
 			isPage = true

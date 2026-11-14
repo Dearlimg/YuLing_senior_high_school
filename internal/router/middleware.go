@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"crypto/sha256"
 	"crypto/subtle"
 	"errors"
@@ -36,6 +37,23 @@ func securityHeaders() gin.HandlerFunc {
 	}
 }
 
+// trafficMeter 全量流量底账：每个 HTTP 请求按天计数并记录 IP 哈希集合。
+// 与真实访客指标（beacon）分离，含爬虫流量；探针路径不计入。
+// 上报异步执行，Redis 抖动不影响主链路，底账允许少量丢失。
+func trafficMeter(meter dao.TrafficMeter) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if meter != nil && c.Request.URL.Path != "/health" && c.Request.URL.Path != "/ready" {
+			hash := fmt.Sprintf("%x", sha256.Sum256([]byte(c.ClientIP()+"|"+c.Request.UserAgent())))
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+				_ = meter.Track(ctx, hash, time.Now().UTC())
+			}()
+		}
+		c.Next()
+	}
+}
+
 func writeGuard(limiter dao.Limiter) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead {
@@ -58,7 +76,7 @@ func writeGuard(limiter dao.Limiter) gin.HandlerFunc {
 		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, logic.MaxUploadImageBytes+(128<<10))
 		limit := 20
 		period := 10 * time.Minute
-		if c.FullPath() == "/api/v1/growth/events" {
+		if c.FullPath() == "/api/v1/growth/events" || c.FullPath() == "/api/v1/track/pageview" {
 			limit = 120
 		}
 		credentialRoute := strings.HasSuffix(c.FullPath(), "/unlock") ||

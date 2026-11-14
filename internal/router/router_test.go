@@ -30,6 +30,7 @@ func testEngineWithAdmin(adminToken string) *gin.Engine {
 		Health:    controller.NewHealthController(nil, nil),
 		Alumni:    controller.NewAlumniController(logic.NewAlumniLogic(store)),
 		Community: controller.NewCommunityController(logic.NewCommunityLogic(store)),
+		Visitor:   controller.NewVisitorController(logic.NewVisitLogic(store), nil),
 		Limiter:   store,
 		Auth:      controller.NewAuthController(auth), AuthLogic: auth,
 	})

@@ -77,6 +77,7 @@ func run() error {
 	var store dao.Store
 	var limiter dao.Limiter
 	var sessions dao.SessionStore
+	var meter dao.TrafficMeter
 	if cfg.App.DemoMode {
 		memory := dao.NewMemoryStore()
 		if err := demo.Seed(memory); err != nil {
@@ -105,6 +106,7 @@ func run() error {
 		store = dao.NewCachedStore(dao.NewRankedStore(sqlStore, rdb, cfg.Redis.KeyPrefix), rdb, cfg.Redis.KeyPrefix)
 		limiter = dao.NewRedisLimiter(rdb, cfg.Redis.KeyPrefix)
 		sessions = dao.NewRedisSessions(rdb, cfg.Redis.KeyPrefix)
+		meter = dao.NewRedisMeter(rdb, cfg.Redis.KeyPrefix)
 	}
 
 	// 3. 分层装配。
@@ -117,7 +119,9 @@ func run() error {
 		Health:    controller.NewHealthController(gdb, rdb),
 		Alumni:    controller.NewAlumniController(alumniLogic),
 		Community: controller.NewCommunityController(communityLogic),
+		Visitor:   controller.NewVisitorController(logic.NewVisitLogic(store), meter),
 		Limiter:   limiter,
+		Meter:     meter,
 		Auth:      controller.NewAuthController(authLogic),
 		AuthLogic: authLogic,
 	})

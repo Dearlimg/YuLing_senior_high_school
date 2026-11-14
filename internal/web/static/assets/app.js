@@ -2,6 +2,8 @@ import { recovery } from "./pages-engagement.js";
 import { events, annualReport, updates } from "./pages-retention.js";
 import { classPage } from "./pages-growth.js";
 import { captureAttribution, contextFor, track } from "./growth.js";
+import { pageview } from "./track.js";
+import { opsBoard } from "./pages-ops.js";
 import { api, session } from "./api.js";
 import { loading, errorState, closeModal } from "./ui.js";
 import { home, directory, universities } from "./pages-discover.js";
@@ -92,6 +94,7 @@ export async function render(restore = false) {
     "/login": "登录",
     "/me": "个人中心",
     "/admin": "社区管理",
+    "/ops-board": "访问看板",
   };
   document.title = `${titles[location.pathname] || "电子校友卡"} · 陕西省榆林中学`;
   const page =
@@ -111,6 +114,7 @@ export async function render(restore = false) {
       "/login": login,
       "/me": personal,
       "/admin": admin,
+      "/ops-board": opsBoard,
     }[location.pathname] ||
     (location.pathname.startsWith("/alumni/") ? profile : null);
   try {
@@ -120,6 +124,7 @@ export async function render(restore = false) {
     if (version !== renderVersion) return;
     main.innerHTML = result.html;
     result.bind?.(main);
+    pageview();
     if (currentURL.searchParams.get("share_id") && contextFor().share_id) {
       track("share_visit", {graduation_year:currentURL.searchParams.get("graduation_year"),class_name:currentURL.searchParams.get("class_name") || ""});
     }

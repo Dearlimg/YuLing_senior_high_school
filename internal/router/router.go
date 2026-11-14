@@ -20,7 +20,9 @@ type Deps struct {
 	Health    *controller.HealthController
 	Alumni    *controller.AlumniController
 	Community *controller.CommunityController
+	Visitor   *controller.VisitorController
 	Limiter   dao.Limiter
+	Meter     dao.TrafficMeter
 	Auth      *controller.AuthController
 	AuthLogic *logic.AuthLogic
 }
@@ -35,6 +37,7 @@ func New(d Deps) *gin.Engine {
 	r := gin.New()
 	r.Use(requestLogging(), recoveryLogging())
 	r.Use(securityHeaders())
+	r.Use(trafficMeter(d.Meter))
 	if err := r.SetTrustedProxies(d.Config.App.TrustedProxies); err != nil {
 		panic(err)
 	}
@@ -58,6 +61,7 @@ func New(d Deps) *gin.Engine {
 		v1.POST("/recovery/:id/complete", d.Alumni.RecoveryReceipt)
 		v1.GET("/universities", d.Alumni.Universities)
 		v1.POST("/growth/events", d.Alumni.GrowthEvent)
+		v1.POST("/track/pageview", d.Visitor.Pageview)
 		alumni := v1.Group("/alumni")
 		{
 			alumni.GET("", d.Alumni.List)
@@ -102,6 +106,7 @@ func New(d Deps) *gin.Engine {
 		admin := v1.Group("/admin", adminGuard(d.Config.App.AdminToken, d.AuthLogic))
 		admin.GET("/users", d.Auth.AdminUsers)
 		admin.GET("/growth", d.Alumni.GrowthMetrics)
+		admin.GET("/visitors", d.Visitor.Overview)
 		admin.GET("/organizers", d.Alumni.Organizers)
 		admin.PUT("/organizers/:id", d.Alumni.ReviewOrganizer)
 		admin.GET("/recoveries", d.Alumni.Recoveries)

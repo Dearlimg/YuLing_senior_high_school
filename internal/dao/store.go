@@ -83,6 +83,8 @@ type Store interface {
 	CompleteRecovery(context.Context, RecoveryCompletion) error
 	ClaimAlumni(context.Context, *model.Alumni, *model.GrowthEvent) error
 	RecordGrowth(context.Context, *model.GrowthEvent) error
+	RecordVisit(context.Context, *model.VisitEvent) error
+	VisitOverview(context.Context, time.Time) (*VisitOverview, error)
 	GrowthCounts(context.Context, GrowthQuery) ([]GrowthCount, error)
 	ListUsers(context.Context, ContentQuery) ([]AdminUser, int64, error)
 	SetUserAdmin(context.Context, uint64, bool, model.AuditLog) error

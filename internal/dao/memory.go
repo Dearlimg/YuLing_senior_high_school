@@ -17,6 +17,7 @@ type MemoryStore struct {
 	organizers    map[uint64]model.ClassOrganizer
 	recoveries    map[uint64]model.CardRecovery
 	growth        []model.GrowthEvent
+	visits        []model.VisitEvent
 	likes         map[string]bool
 	users         map[uint64]model.User
 	sessions      map[string]memorySession
